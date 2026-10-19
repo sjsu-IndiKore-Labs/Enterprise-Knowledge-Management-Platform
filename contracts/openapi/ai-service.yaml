@@ -1,0 +1,292 @@
+openapi: 3.0.3
+info:
+  title: EKM ai-service (internal API)
+  version: 1.0.0
+  description: |
+    Internal API of the RAG service. Owner: Vedanti (AI). Only consumer: core-api (Ayushi).
+    Never exposed to the browser. Every request must carry `X-Internal-Token`.
+    `allowedDepartments` is computed by core-api from the user's JWT and MUST be applied as a
+    pre-filter in SQL before ranking (contracts/auth.md).
+    Ingestion is NOT an HTTP endpoint: it is driven by the SQS queue ekm-document-ingest
+    (contracts/events/document-ingest-requested.schema.json).
+    Run a mock with `make mock-ai-service` (http://localhost:4011).
+servers:
+  - url: http://localhost:8000
+    description: local
+  - url: http://localhost:4011
+    description: Prism mock
+security:
+  - internalToken: []
+
+paths:
+  /health:
+    get:
+      summary: Liveness + dependency status
+      security: []
+      operationId: health
+      responses:
+        '200':
+          description: Up
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, enum: [UP, DEGRADED] }
+                  provider: { type: string, enum: [openai, fake] }
+                  database: { type: string, enum: [UP, DOWN] }
+                  queueConsumer: { type: string, enum: [RUNNING, STOPPED] }
+
+  /internal/v1/search:
+    post:
+      summary: Hybrid retrieval only (no LLM)
+      operationId: search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SearchRequest' }
+      responses:
+        '200':
+          description: Ranked chunks
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SearchResponse' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /internal/v1/answer:
+    post:
+      summary: Retrieve + synthesize a grounded answer (non-streaming)
+      operationId: answer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnswerRequest' }
+      responses:
+        '200':
+          description: Answer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnswerResponse' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '503': { $ref: '#/components/responses/UpstreamUnavailable' }
+
+  /internal/v1/answer/stream:
+    post:
+      summary: Same as /answer but streamed as SSE (token*, citations, done | error) — see contracts/streaming.md
+      operationId: answerStream
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnswerRequest' }
+      responses:
+        '200':
+          description: SSE stream (no `meta` event; core-api adds it)
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /internal/v1/documents/{documentId}/reindex:
+    post:
+      summary: Re-run ingestion for a document version (admin / recovery tool)
+      operationId: reindex
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [versionId]
+              properties:
+                versionId: { type: string, format: uuid }
+      responses:
+        '202': { description: Re-queued }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /internal/v1/knowledge-gaps/cluster:
+    post:
+      summary: (Milestone 5, optional) Group similar unanswered queries into topics
+      operationId: clusterGaps
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [queries]
+              properties:
+                queries:
+                  type: array
+                  items:
+                    type: object
+                    required: [id, text]
+                    properties:
+                      id: { type: string }
+                      text: { type: string }
+      responses:
+        '200':
+          description: Clusters
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [clusters]
+                properties:
+                  clusters:
+                    type: array
+                    items:
+                      type: object
+                      required: [label, queryIds]
+                      properties:
+                        label: { type: string, example: 'Parental leave for contractors' }
+                        queryIds: { type: array, items: { type: string } }
+
+components:
+  securitySchemes:
+    internalToken:
+      type: apiKey
+      in: header
+      name: X-Internal-Token
+
+  responses:
+    Unauthenticated:
+      description: Missing or wrong X-Internal-Token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: Invalid body
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    UpstreamUnavailable:
+      description: OpenAI unavailable / rate limited
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message, traceId, timestamp]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details: { type: object, additionalProperties: true }
+        traceId: { type: string }
+        timestamp: { type: string, format: date-time }
+
+    DepartmentCode:
+      type: string
+      enum: [GENERAL, HR, ENGINEERING, FINANCE, LEGAL, MARKETING]
+    DocumentCategory:
+      type: string
+      enum: [POLICY, SOP, MANUAL, GUIDE, REPORT, OTHER]
+    SearchMode:
+      type: string
+      enum: [HYBRID, SEMANTIC, KEYWORD]
+
+    SearchRequest:
+      type: object
+      required: [query, allowedDepartments]
+      properties:
+        query: { type: string, minLength: 1, maxLength: 1000 }
+        allowedDepartments:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/DepartmentCode' }
+        mode: { allOf: [{ $ref: '#/components/schemas/SearchMode' }], default: HYBRID }
+        topK: { type: integer, minimum: 1, maximum: 50, default: 10 }
+        categories:
+          type: array
+          items: { $ref: '#/components/schemas/DocumentCategory' }
+    SearchResult:
+      type: object
+      required: [chunkId, documentId, documentTitle, department, version, content, score]
+      properties:
+        chunkId: { type: string, format: uuid }
+        documentId: { type: string, format: uuid }
+        documentTitle: { type: string }
+        department: { $ref: '#/components/schemas/DepartmentCode' }
+        category: { $ref: '#/components/schemas/DocumentCategory' }
+        version: { type: integer }
+        pageNumber: { type: integer, nullable: true }
+        sectionTitle: { type: string, nullable: true }
+        content: { type: string }
+        score: { type: number, minimum: 0, maximum: 1 }
+        semanticScore: { type: number, nullable: true }
+        keywordScore: { type: number, nullable: true }
+    SearchResponse:
+      type: object
+      required: [query, mode, results, latencyMs]
+      properties:
+        query: { type: string }
+        mode: { $ref: '#/components/schemas/SearchMode' }
+        results: { type: array, items: { $ref: '#/components/schemas/SearchResult' } }
+        latencyMs: { type: integer }
+
+    HistoryMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role: { type: string, enum: [USER, ASSISTANT] }
+        content: { type: string }
+    AnswerRequest:
+      type: object
+      required: [queryId, query, allowedDepartments]
+      properties:
+        queryId: { type: string, format: uuid, description: Generated by core-api; echo it back and use it in logs }
+        query: { type: string, minLength: 1, maxLength: 2000 }
+        allowedDepartments:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/DepartmentCode' }
+        history:
+          type: array
+          maxItems: 6
+          items: { $ref: '#/components/schemas/HistoryMessage' }
+        topK: { type: integer, minimum: 1, maximum: 20, default: 6 }
+    Citation:
+      type: object
+      required: [citationNumber, documentId, documentTitle, version, chunkId, snippet, score]
+      properties:
+        citationNumber: { type: integer, minimum: 1 }
+        documentId: { type: string, format: uuid }
+        documentTitle: { type: string }
+        department: { $ref: '#/components/schemas/DepartmentCode' }
+        version: { type: integer }
+        pageNumber: { type: integer, nullable: true }
+        sectionTitle: { type: string, nullable: true }
+        chunkId: { type: string, format: uuid }
+        snippet: { type: string }
+        score: { type: number, minimum: 0, maximum: 1 }
+    Usage:
+      type: object
+      required: [model, promptTokens, completionTokens]
+      properties:
+        model: { type: string, example: gpt-4o-mini }
+        promptTokens: { type: integer }
+        completionTokens: { type: integer }
+        embeddingTokens: { type: integer }
+    AnswerResponse:
+      type: object
+      required: [queryId, answer, answered, confidence, citations, latencyMs]
+      properties:
+        queryId: { type: string, format: uuid }
+        answer: { type: string }
+        answered: { type: boolean }
+        confidence: { type: number, minimum: 0, maximum: 1, description: Best retrieval score after re-ranking }
+        citations: { type: array, items: { $ref: '#/components/schemas/Citation' } }
+        usage: { $ref: '#/components/schemas/Usage' }
+        latencyMs: { type: integer }

@@ -1,0 +1,51 @@
+// Jenkins pipeline for EKM (course requirement alongside GitHub Actions).
+// Configure the job with "Script Path" = manali_devops/jenkins/Jenkinsfile.
+// Credentials needed in Jenkins: aws-ecr-deployer (AWS creds or instance role).
+pipeline {
+  agent any
+  environment {
+    AWS_REGION = 'us-west-2'
+    ECR_REGISTRY = "${env.ECR_REGISTRY}"           // e.g. 123456789012.dkr.ecr.us-west-2.amazonaws.com
+    IMAGE_TAG = "${env.GIT_COMMIT?.take(7) ?: 'local'}"
+    ECS_CLUSTER = 'ekm-staging'
+  }
+  options { timestamps(); timeout(time: 45, unit: 'MINUTES') }
+  stages {
+    stage('Contracts') {
+      steps {
+        sh 'npx --yes @redocly/cli@1 lint contracts/openapi/core-api.yaml contracts/openapi/ai-service.yaml'
+      }
+    }
+    stage('Build & test') {
+      parallel {
+        stage('backend')  { when { expression { fileExists('ayushi_backend/gradlew') } }
+          steps { dir('ayushi_backend') { sh './gradlew --no-daemon build' } } }
+        stage('frontend') { when { expression { fileExists('changhyun_frontend/package.json') } }
+          steps { dir('changhyun_frontend') { sh 'corepack enable && pnpm install --frozen-lockfile && pnpm lint && pnpm build' } } }
+        stage('ai')       { when { expression { fileExists('vedanti_ai/pyproject.toml') } }
+          steps { dir('vedanti_ai') { sh 'python3 -m venv .venv && .venv/bin/pip install -e ".[dev]" && AI_PROVIDER=fake .venv/bin/pytest -q' } } }
+      }
+    }
+    stage('Docker build & push') {
+      when { branch 'main' }
+      steps {
+        sh '''
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+          for svc in core-api:ayushi_backend/core-api audit-service:ayushi_backend/audit-service ai-service:vedanti_ai web:changhyun_frontend; do
+            name=${svc%%:*}; path=${svc#*:}
+            [ -f "$path/Dockerfile" ] || continue
+            ctx=$path; [ "$name" = core-api ] || [ "$name" = audit-service ] && ctx=.
+            docker build -f $path/Dockerfile -t $ECR_REGISTRY/ekm-$name:$IMAGE_TAG $ctx
+            docker push $ECR_REGISTRY/ekm-$name:$IMAGE_TAG
+          done
+        '''
+      }
+    }
+    stage('Deploy to ECS staging') {
+      when { branch 'main' }
+      steps {
+        sh 'manali_devops/scripts/ecs-deploy.sh $ECS_CLUSTER $IMAGE_TAG'
+      }
+    }
+  }
+}

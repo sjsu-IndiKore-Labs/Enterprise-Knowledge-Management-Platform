@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ekm.local/contracts/events/audit-event.schema.json",
+  "title": "AuditEvent",
+  "description": "core-api -> audit-service on queue ekm-audit-events. One security/usage-relevant action. QUERY_ASKED events feed query_logs, analytics and knowledge_gaps.",
+  "type": "object",
+  "required": ["eventId", "eventType", "occurredAt", "traceId", "action"],
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid" },
+    "eventType": { "const": "AUDIT_EVENT" },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "traceId": { "type": "string" },
+    "action": { "enum": ["LOGIN_SUCCEEDED", "LOGIN_FAILED", "DOCUMENT_UPLOADED", "DOCUMENT_VERSION_UPLOADED", "DOCUMENT_UPDATED", "DOCUMENT_DELETED", "DOCUMENT_VIEWED", "DOCUMENT_INDEXED", "DOCUMENT_FAILED", "QUERY_ASKED", "SEARCH_PERFORMED", "ACCESS_DENIED", "USER_CREATED", "USER_UPDATED", "KNOWLEDGE_GAP_UPDATED", "FEEDBACK_SUBMITTED"] },
+    "actorUserId": { "type": ["string", "null"], "format": "uuid" },
+    "actorEmail": { "type": ["string", "null"] },
+    "actorRole": { "type": ["string", "null"], "enum": [null, "EMPLOYEE", "MANAGER", "ADMIN"] },
+    "actorDepartment": { "type": ["string", "null"], "enum": [null, "GENERAL", "HR", "ENGINEERING", "FINANCE", "LEGAL", "MARKETING"] },
+    "resourceType": { "type": ["string", "null"], "enum": [null, "DOCUMENT", "USER", "QUERY", "CONVERSATION", "KNOWLEDGE_GAP"] },
+    "resourceId": { "type": ["string", "null"] },
+    "ipAddress": { "type": ["string", "null"] },
+    "userAgent": { "type": ["string", "null"] },
+    "metadata": {
+      "type": "object",
+      "description": "Action-specific. For QUERY_ASKED the keys below are REQUIRED.",
+      "properties": {
+        "queryId": { "type": "string", "format": "uuid" },
+        "queryText": { "type": "string" },
+        "conversationId": { "type": "string", "format": "uuid" },
+        "allowedDepartments": { "type": "array", "items": { "type": "string" } },
+        "answered": { "type": "boolean" },
+        "confidence": { "type": "number" },
+        "latencyMs": { "type": "integer" },
+        "citedDocumentIds": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+        "model": { "type": "string" },
+        "promptTokens": { "type": "integer" },
+        "completionTokens": { "type": "integer" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "action": { "const": "QUERY_ASKED" } } },
+      "then": { "properties": { "metadata": { "required": ["queryId", "queryText", "answered", "confidence", "latencyMs", "citedDocumentIds"] } }, "required": ["metadata"] }
+    }
+  ],
+  "additionalProperties": true
+}

@@ -1,0 +1,8 @@
+# Redocly lint config for contracts/openapi (used by `make lint-contracts` and CI)
+extends:
+  - recommended
+rules:
+  info-license: off
+  tag-description: off
+  no-server-example.com: off
+  operation-4xx-response: warn

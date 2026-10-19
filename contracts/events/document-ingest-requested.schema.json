@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ekm.local/contracts/events/document-ingest-requested.schema.json",
+  "title": "DocumentIngestRequested",
+  "description": "core-api -> ai-service on queue ekm-document-ingest. A document version was stored in S3 and must be parsed, chunked, embedded and indexed.",
+  "type": "object",
+  "required": ["eventId", "eventType", "occurredAt", "traceId", "documentId", "versionId", "version", "s3Bucket", "s3Key", "contentType", "originalFilename", "title", "department", "category", "uploadedBy"],
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid" },
+    "eventType": { "const": "DOCUMENT_INGEST_REQUESTED" },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "traceId": { "type": "string" },
+    "documentId": { "type": "string", "format": "uuid" },
+    "versionId": { "type": "string", "format": "uuid" },
+    "version": { "type": "integer", "minimum": 1 },
+    "previousVersionId": { "type": ["string", "null"], "format": "uuid", "description": "Set when this is a new version; its chunks must be marked is_current=false once this version is INDEXED." },
+    "s3Bucket": { "type": "string" },
+    "s3Key": { "type": "string" },
+    "contentType": { "enum": ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] },
+    "originalFilename": { "type": "string" },
+    "sizeBytes": { "type": "integer", "minimum": 0 },
+    "title": { "type": "string" },
+    "department": { "enum": ["GENERAL", "HR", "ENGINEERING", "FINANCE", "LEGAL", "MARKETING"] },
+    "category": { "enum": ["POLICY", "SOP", "MANUAL", "GUIDE", "REPORT", "OTHER"] },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "author": { "type": ["string", "null"] },
+    "uploadedBy": { "type": "string", "format": "uuid" }
+  },
+  "additionalProperties": true
+}

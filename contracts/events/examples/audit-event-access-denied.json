@@ -1,0 +1,15 @@
+{
+  "eventId": "9f4a1c5e-7d1b-4b99-9e4c-6d5a2f0b3c45",
+  "eventType": "AUDIT_EVENT",
+  "occurredAt": "2026-10-19T17:12:40Z",
+  "traceId": "f3d1245b-9d5e-4c6a-9b4f-2a0e8d6c5b43",
+  "action": "ACCESS_DENIED",
+  "actorUserId": "11111111-1111-4111-8111-000000000005",
+  "actorEmail": "eric.eng@helios.example.com",
+  "actorRole": "EMPLOYEE",
+  "actorDepartment": "ENGINEERING",
+  "resourceType": "DOCUMENT",
+  "resourceId": "e5c7a3b6-8f1b-4c2e-9a5d-6b7c8d9eafb4",
+  "ipAddress": "127.0.0.1",
+  "metadata": { "documentDepartment": "HR", "endpoint": "GET /api/v1/documents/{id}" }
+}

@@ -1,0 +1,20 @@
+docId,version,title,department,category,author,effectiveDate,classification,format,sourceMarkdown,file
+GEN-001,1,Helios Systems Employee Handbook,GENERAL,GUIDE,People Operations,2026-01-01,INTERNAL,pdf,GEN-001_Employee_Handbook.md,GEN-001_Employee_Handbook.pdf
+GEN-002,1,Information Security Acceptable Use Policy,GENERAL,POLICY,Information Security,2026-02-01,INTERNAL,pdf,GEN-002_Information_Security_Acceptable_Use_Policy.md,GEN-002_Information_Security_Acceptable_Use_Policy.pdf
+GEN-003,1,Remote Work Policy,GENERAL,POLICY,People Operations,2025-03-01,INTERNAL,pdf,GEN-003_Remote_Work_Policy_v1.md,GEN-003_Remote_Work_Policy_v1.pdf
+GEN-003,2,Remote Work Policy,GENERAL,POLICY,People Operations,2026-07-01,INTERNAL,pdf,GEN-003_Remote_Work_Policy_v2.md,GEN-003_Remote_Work_Policy_v2.pdf
+GEN-004,1,Travel and Expense Reimbursement Policy,GENERAL,POLICY,Finance (Controller),2026-01-15,INTERNAL,pdf,GEN-004_Travel_and_Expense_Policy.md,GEN-004_Travel_and_Expense_Policy.pdf
+HR-001,1,PTO and Leave Policy,HR,POLICY,People Operations,2026-01-01,INTERNAL,pdf,HR-001_PTO_and_Leave_Policy.md,HR-001_PTO_and_Leave_Policy.pdf
+HR-002,1,New Employee Onboarding SOP,HR,SOP,People Operations,2026-03-01,INTERNAL,docx,HR-002_New_Employee_Onboarding_SOP.md,HR-002_New_Employee_Onboarding_SOP.docx
+HR-003,1,Performance Review Process,HR,SOP,People Operations,2026-01-01,INTERNAL,pdf,HR-003_Performance_Review_Process.md,HR-003_Performance_Review_Process.pdf
+HR-004,1,Compensation Bands 2026 (Confidential),HR,REPORT,Total Rewards,2026-01-01,CONFIDENTIAL,pdf,HR-004_Compensation_Bands_2026_CONFIDENTIAL.md,HR-004_Compensation_Bands_2026_CONFIDENTIAL.pdf
+ENG-001,1,Production Incident Response Runbook,ENGINEERING,SOP,Site Reliability Engineering,2026-02-15,INTERNAL,pdf,ENG-001_Incident_Response_Runbook.md,ENG-001_Incident_Response_Runbook.pdf
+ENG-002,1,Code Review and Deployment SOP,ENGINEERING,SOP,Developer Productivity,2026-01-10,INTERNAL,docx,ENG-002_Code_Review_and_Deployment_SOP.md,ENG-002_Code_Review_and_Deployment_SOP.docx
+ENG-003,1,Engineering On-Call Policy,ENGINEERING,POLICY,Engineering Leadership,2026-01-01,INTERNAL,pdf,ENG-003_On_Call_Policy.md,ENG-003_On_Call_Policy.pdf
+FIN-001,1,Procurement and Purchase Approval SOP,FINANCE,SOP,Procurement,2026-02-01,INTERNAL,pdf,FIN-001_Procurement_and_Purchase_Approval_SOP.md,FIN-001_Procurement_and_Purchase_Approval_SOP.pdf
+FIN-002,1,FY2026 Q3 Budget Summary (Confidential),FINANCE,REPORT,FP&A,2026-10-05,CONFIDENTIAL,pdf,FIN-002_FY2026_Q3_Budget_Summary_CONFIDENTIAL.md,FIN-002_FY2026_Q3_Budget_Summary_CONFIDENTIAL.pdf
+LEG-001,1,Contract Review SOP,LEGAL,SOP,Legal Operations,2026-01-20,INTERNAL,docx,LEG-001_Contract_Review_SOP.md,LEG-001_Contract_Review_SOP.docx
+LEG-002,1,Data Retention and Privacy Policy,LEGAL,POLICY,Privacy Office,2026-03-15,INTERNAL,pdf,LEG-002_Data_Retention_and_Privacy_Policy.md,LEG-002_Data_Retention_and_Privacy_Policy.pdf
+LEG-003,1,Pending Litigation Summary (Privileged),LEGAL,REPORT,General Counsel,2026-09-30,RESTRICTED,pdf,LEG-003_Pending_Litigation_Summary_CONFIDENTIAL.md,LEG-003_Pending_Litigation_Summary_CONFIDENTIAL.pdf
+MKT-001,1,Brand Guidelines,MARKETING,GUIDE,Brand Team,2026-02-01,INTERNAL,pdf,MKT-001_Brand_Guidelines.md,MKT-001_Brand_Guidelines.pdf
+MKT-002,1,Social Media Policy,MARKETING,POLICY,Communications,2026-04-01,INTERNAL,docx,MKT-002_Social_Media_Policy.md,MKT-002_Social_Media_Policy.docx

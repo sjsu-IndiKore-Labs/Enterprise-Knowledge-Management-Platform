@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ekm.local/contracts/events/document-ingest-status.schema.json",
+  "title": "DocumentIngestStatus",
+  "description": "ai-service -> core-api on queue ekm-document-status. Progress / result of ingesting one document version. Sent with status PROCESSING when work starts, then exactly one INDEXED or FAILED.",
+  "type": "object",
+  "required": ["eventId", "eventType", "occurredAt", "traceId", "documentId", "versionId", "status"],
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid" },
+    "eventType": { "const": "DOCUMENT_INGEST_STATUS" },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "traceId": { "type": "string" },
+    "documentId": { "type": "string", "format": "uuid" },
+    "versionId": { "type": "string", "format": "uuid" },
+    "status": { "enum": ["PROCESSING", "INDEXED", "FAILED"] },
+    "pageCount": { "type": ["integer", "null"], "minimum": 0 },
+    "chunkCount": { "type": ["integer", "null"], "minimum": 0 },
+    "embeddingTokens": { "type": ["integer", "null"], "minimum": 0 },
+    "processingMs": { "type": ["integer", "null"], "minimum": 0 },
+    "errorCode": { "type": ["string", "null"], "enum": [null, "UNSUPPORTED_FORMAT", "CORRUPT_FILE", "NO_EXTRACTABLE_TEXT", "S3_READ_FAILED", "EMBEDDING_FAILED", "DB_WRITE_FAILED", "INTERNAL_ERROR"] },
+    "errorMessage": { "type": ["string", "null"], "maxLength": 1000 }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,1075 @@
+openapi: 3.0.3
+info:
+  title: EKM core-api (public REST API)
+  version: 1.0.0
+  description: |
+    Public API used by the web portal. Owner: Ayushi (backend). Consumer: Changhyun (frontend).
+    Conventions (casing, errors, pagination, headers): contracts/conventions.md.
+    Auth & department rules: contracts/auth.md. Streaming format: contracts/streaming.md.
+    Run a mock with `make mock-core-api` (http://localhost:4010).
+servers:
+  - url: http://localhost:8080
+    description: local
+  - url: http://localhost:4010
+    description: Prism mock
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+  - name: Users
+  - name: Documents
+  - name: Search
+  - name: Chat
+  - name: Admin Analytics
+  - name: Admin Users
+  - name: Meta
+
+paths:
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in with email + password and receive a JWT
+      security: []
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+            example: { email: hannah.hr@helios.example.com, password: 'Password123!' }
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /api/v1/users/me:
+    get:
+      tags: [Users]
+      summary: Current user profile and effective permissions
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CurrentUser' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /api/v1/departments:
+    get:
+      tags: [Meta]
+      summary: List all departments (for dropdowns)
+      operationId: listDepartments
+      responses:
+        '200':
+          description: Departments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Department' }
+
+  /api/v1/documents:
+    get:
+      tags: [Documents]
+      summary: List documents the caller is allowed to see
+      operationId: listDocuments
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
+        - name: department
+          in: query
+          schema: { $ref: '#/components/schemas/DepartmentCode' }
+        - name: category
+          in: query
+          schema: { $ref: '#/components/schemas/DocumentCategory' }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/DocumentStatus' }
+        - name: q
+          in: query
+          description: Case-insensitive match on title / tags (not semantic search)
+          schema: { type: string }
+      responses:
+        '200':
+          description: Page of documents
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentPage' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    post:
+      tags: [Documents]
+      summary: Upload a new document (MANAGER of that department, or ADMIN)
+      description: |
+        Stores the file in S3, creates the document + version 1 with status QUEUED and publishes
+        a DOCUMENT_INGEST_REQUESTED message. Returns immediately (202); poll GET /documents/{id}
+        until status is INDEXED or FAILED.
+      operationId: uploadDocument
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/UploadDocumentForm' }
+      responses:
+        '202':
+          description: Accepted for processing
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+
+  /api/v1/documents/{documentId}:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [Documents]
+      summary: Document metadata incl. processing status and all versions
+      operationId: getDocument
+      responses:
+        '200':
+          description: Document
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentDetail' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Documents]
+      summary: Update metadata (title, category, tags). Department cannot change.
+      operationId: updateDocumentMetadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateDocumentRequest' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Documents]
+      summary: Soft-delete a document (its chunks stop appearing in search immediately)
+      operationId: deleteDocument
+      responses:
+        '204': { description: Deleted }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/documents/{documentId}/versions:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    post:
+      tags: [Documents]
+      summary: Upload a new version of an existing document
+      description: New version becomes current once INDEXED; previous version's chunks are marked not current.
+      operationId: uploadDocumentVersion
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                changeNote: { type: string, maxLength: 500 }
+      responses:
+        '202':
+          description: Accepted for processing
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentVersion' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+
+  /api/v1/documents/{documentId}/download-url:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+      - name: version
+        in: query
+        description: Defaults to the current version
+        schema: { type: integer, minimum: 1 }
+      - name: page
+        in: query
+        description: Optional page to deep-link into (appended as #page=N for PDFs)
+        schema: { type: integer, minimum: 1 }
+    get:
+      tags: [Documents]
+      summary: Short-lived (5 min) presigned S3 URL to view/download the file
+      operationId: getDownloadUrl
+      responses:
+        '200':
+          description: Presigned URL
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DownloadUrl' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/documents/{documentId}/chunks/{chunkId}:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+      - name: chunkId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Documents]
+      summary: Full text of one chunk (used by the citation preview panel)
+      operationId: getChunk
+      responses:
+        '200':
+          description: Chunk
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Chunk' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/search:
+    post:
+      tags: [Search]
+      summary: Hybrid (semantic + keyword) search over allowed documents, no LLM answer
+      operationId: search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SearchRequest' }
+      responses:
+        '200':
+          description: Ranked chunks
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SearchResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '502': { $ref: '#/components/responses/UpstreamUnavailable' }
+
+  /api/v1/chat:
+    post:
+      tags: [Chat]
+      summary: Ask the assistant a question (non-streaming)
+      operationId: chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatRequest' }
+      responses:
+        '200':
+          description: Grounded answer with citations
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '502': { $ref: '#/components/responses/UpstreamUnavailable' }
+
+  /api/v1/chat/stream:
+    post:
+      tags: [Chat]
+      summary: Ask the assistant a question, answer streamed as Server-Sent Events
+      description: Event format is defined in contracts/streaming.md (meta, token*, citations, done | error).
+      operationId: chatStream
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatRequest' }
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+              example: |
+                event: meta
+                data: {"queryId":"0b2f...","conversationId":"9a1c...","messageId":"5e7d..."}
+
+                event: token
+                data: {"text":"Employees accrue 1.67 days per month [1]."}
+
+                event: citations
+                data: {"citations":[{"citationNumber":1,"documentId":"...","documentTitle":"PTO and Leave Policy","version":1,"pageNumber":1,"chunkId":"...","snippet":"...","score":0.83}]}
+
+                event: done
+                data: {"answered":true,"confidence":0.83,"latencyMs":2140}
+
+  /api/v1/conversations:
+    get:
+      tags: [Chat]
+      summary: Caller's own conversations (newest first)
+      operationId: listConversations
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Page of conversations
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversationPage' }
+
+  /api/v1/conversations/{conversationId}:
+    parameters:
+      - name: conversationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Chat]
+      summary: All messages of one of the caller's conversations
+      operationId: getConversation
+      responses:
+        '200':
+          description: Conversation with messages
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversationDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Chat]
+      summary: Delete one of the caller's conversations
+      operationId: deleteConversation
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/chat/messages/{messageId}/feedback:
+    parameters:
+      - name: messageId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Chat]
+      summary: Thumbs up/down on an assistant answer (feeds analytics + RAG evaluation)
+      operationId: submitFeedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FeedbackRequest' }
+      responses:
+        '204': { description: Recorded }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/analytics/summary:
+    get:
+      tags: [Admin Analytics]
+      summary: KPI tiles for the admin dashboard (ADMIN only)
+      operationId: getAnalyticsSummary
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+      responses:
+        '200':
+          description: Summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnalyticsSummary' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/admin/analytics/queries-over-time:
+    get:
+      tags: [Admin Analytics]
+      summary: Query counts bucketed by day (ADMIN only)
+      operationId: getQueriesOverTime
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - name: department
+          in: query
+          schema: { $ref: '#/components/schemas/DepartmentCode' }
+      responses:
+        '200':
+          description: Time series
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TimeSeriesPoint' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/admin/analytics/top-queries:
+    get:
+      tags: [Admin Analytics]
+      summary: Most frequent questions (ADMIN only)
+      operationId: getTopQueries
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10, maximum: 100 }
+      responses:
+        '200':
+          description: Top queries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TopQuery' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/admin/analytics/top-documents:
+    get:
+      tags: [Admin Analytics]
+      summary: Most cited documents (ADMIN only)
+      operationId: getTopDocuments
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10, maximum: 100 }
+      responses:
+        '200':
+          description: Top documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TopDocument' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/admin/knowledge-gaps:
+    get:
+      tags: [Admin Analytics]
+      summary: Unanswered / low-confidence questions grouped as knowledge gaps (ADMIN only)
+      operationId: listKnowledgeGaps
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/KnowledgeGapStatus' }
+        - name: department
+          in: query
+          schema: { $ref: '#/components/schemas/DepartmentCode' }
+      responses:
+        '200':
+          description: Page of gaps
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KnowledgeGapPage' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/admin/knowledge-gaps/{gapId}:
+    parameters:
+      - name: gapId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Admin Analytics]
+      summary: Change a gap's status / add notes (ADMIN only)
+      operationId: updateKnowledgeGap
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateKnowledgeGapRequest' }
+      responses:
+        '200':
+          description: Updated gap
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KnowledgeGap' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/audit-logs:
+    get:
+      tags: [Admin Analytics]
+      summary: Audit trail (ADMIN only)
+      operationId: listAuditLogs
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - name: action
+          in: query
+          schema: { $ref: '#/components/schemas/AuditAction' }
+        - name: userId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Page of audit logs
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditLogPage' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/admin/users:
+    get:
+      tags: [Admin Users]
+      summary: List users (ADMIN only)
+      operationId: listUsers
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Page of users
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserPage' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Admin Users]
+      summary: Create a user (ADMIN only)
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateUserRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/admin/users/{userId}:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Admin Users]
+      summary: Change role / department / active flag (ADMIN only)
+      operationId: updateUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateUserRequest' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    DocumentId:
+      name: documentId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 0, default: 0 }
+    Size:
+      name: size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Sort:
+      name: sort
+      in: query
+      description: '`field,asc|desc` e.g. `createdAt,desc`'
+      schema: { type: string, default: 'updatedAt,desc' }
+    From:
+      name: from
+      in: query
+      description: Inclusive start (default = 30 days ago)
+      schema: { type: string, format: date-time }
+    To:
+      name: to
+      in: query
+      description: Exclusive end (default = now)
+      schema: { type: string, format: date-time }
+
+  responses:
+    ValidationError:
+      description: Invalid input
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthenticated:
+      description: Missing / invalid / expired JWT
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Authenticated but not allowed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Does not exist or caller may not see it
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Conflict (e.g. email already exists)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    PayloadTooLarge:
+      description: File larger than 25 MB
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    UnsupportedMediaType:
+      description: Only PDF and DOCX are accepted
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    UpstreamUnavailable:
+      description: ai-service or OpenAI unavailable
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message, traceId, timestamp]
+      properties:
+        code: { type: string, example: DOCUMENT_NOT_FOUND }
+        message: { type: string }
+        details: { type: object, additionalProperties: true }
+        traceId: { type: string }
+        timestamp: { type: string, format: date-time }
+
+    DepartmentCode:
+      type: string
+      enum: [GENERAL, HR, ENGINEERING, FINANCE, LEGAL, MARKETING]
+    Role:
+      type: string
+      enum: [EMPLOYEE, MANAGER, ADMIN]
+    DocumentStatus:
+      type: string
+      description: UPLOADED -> QUEUED -> PROCESSING -> INDEXED | FAILED
+      enum: [UPLOADED, QUEUED, PROCESSING, INDEXED, FAILED]
+    DocumentCategory:
+      type: string
+      enum: [POLICY, SOP, MANUAL, GUIDE, REPORT, OTHER]
+    KnowledgeGapStatus:
+      type: string
+      enum: [OPEN, IN_PROGRESS, RESOLVED, DISMISSED]
+    AuditAction:
+      type: string
+      enum: [LOGIN_SUCCEEDED, LOGIN_FAILED, DOCUMENT_UPLOADED, DOCUMENT_VERSION_UPLOADED, DOCUMENT_UPDATED,
+             DOCUMENT_DELETED, DOCUMENT_VIEWED, DOCUMENT_INDEXED, DOCUMENT_FAILED, QUERY_ASKED, SEARCH_PERFORMED,
+             ACCESS_DENIED, USER_CREATED, USER_UPDATED, KNOWLEDGE_GAP_UPDATED, FEEDBACK_SUBMITTED]
+
+    Department:
+      type: object
+      required: [code, name]
+      properties:
+        code: { $ref: '#/components/schemas/DepartmentCode' }
+        name: { type: string, example: Human Resources }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 1 }
+    LoginResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn, user]
+      properties:
+        accessToken: { type: string }
+        tokenType: { type: string, enum: [Bearer] }
+        expiresIn: { type: integer, description: seconds, example: 3600 }
+        user: { $ref: '#/components/schemas/CurrentUser' }
+
+    User:
+      type: object
+      required: [id, email, fullName, role, department, active, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        fullName: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        department: { $ref: '#/components/schemas/DepartmentCode' }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    CurrentUser:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          required: [allowedDepartments, permissions]
+          properties:
+            allowedDepartments:
+              type: array
+              items: { $ref: '#/components/schemas/DepartmentCode' }
+            permissions:
+              type: array
+              description: UI hints only; the server enforces everything.
+              items:
+                type: string
+                enum: [DOCUMENT_READ, DOCUMENT_WRITE, ANALYTICS_READ, USER_ADMIN]
+    UserPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/User' } }
+    CreateUserRequest:
+      type: object
+      required: [email, fullName, password, role, department]
+      properties:
+        email: { type: string, format: email }
+        fullName: { type: string }
+        password: { type: string, minLength: 10 }
+        role: { $ref: '#/components/schemas/Role' }
+        department: { $ref: '#/components/schemas/DepartmentCode' }
+    UpdateUserRequest:
+      type: object
+      properties:
+        fullName: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        department: { $ref: '#/components/schemas/DepartmentCode' }
+        active: { type: boolean }
+
+    PageMeta:
+      type: object
+      required: [page, size, totalItems, totalPages]
+      properties:
+        page: { type: integer }
+        size: { type: integer }
+        totalItems: { type: integer }
+        totalPages: { type: integer }
+
+    UploadDocumentForm:
+      type: object
+      required: [file, title, department, category]
+      properties:
+        file:
+          type: string
+          format: binary
+          description: application/pdf or application/vnd.openxmlformats-officedocument.wordprocessingml.document, max 25 MB
+        title: { type: string, maxLength: 200 }
+        department: { $ref: '#/components/schemas/DepartmentCode' }
+        category: { $ref: '#/components/schemas/DocumentCategory' }
+        author: { type: string, maxLength: 120 }
+        tags:
+          type: string
+          description: Comma-separated tags, e.g. "leave,pto,benefits"
+    UpdateDocumentRequest:
+      type: object
+      properties:
+        title: { type: string, maxLength: 200 }
+        category: { $ref: '#/components/schemas/DocumentCategory' }
+        author: { type: string, maxLength: 120 }
+        tags: { type: array, items: { type: string } }
+
+    Document:
+      type: object
+      required: [id, title, department, category, tags, currentVersion, status, createdBy, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        department: { $ref: '#/components/schemas/DepartmentCode' }
+        category: { $ref: '#/components/schemas/DocumentCategory' }
+        author: { type: string, nullable: true }
+        tags: { type: array, items: { type: string } }
+        currentVersion: { type: integer, minimum: 1, description: Latest INDEXED version (or 1 while the first is processing) }
+        status: { $ref: '#/components/schemas/DocumentStatus' }
+        originalFilename: { type: string }
+        contentType: { type: string }
+        pageCount: { type: integer, nullable: true }
+        createdBy: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    DocumentVersion:
+      type: object
+      required: [id, documentId, version, status, originalFilename, contentType, sizeBytes, uploadedBy, uploadedAt]
+      properties:
+        id: { type: string, format: uuid }
+        documentId: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+        status: { $ref: '#/components/schemas/DocumentStatus' }
+        originalFilename: { type: string }
+        contentType: { type: string }
+        sizeBytes: { type: integer }
+        pageCount: { type: integer, nullable: true }
+        chunkCount: { type: integer, nullable: true }
+        changeNote: { type: string, nullable: true }
+        errorMessage: { type: string, nullable: true }
+        uploadedBy: { type: string, format: uuid }
+        uploadedAt: { type: string, format: date-time }
+        indexedAt: { type: string, format: date-time, nullable: true }
+    DocumentDetail:
+      allOf:
+        - $ref: '#/components/schemas/Document'
+        - type: object
+          required: [versions]
+          properties:
+            versions:
+              type: array
+              items: { $ref: '#/components/schemas/DocumentVersion' }
+    DocumentPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/Document' } }
+    DownloadUrl:
+      type: object
+      required: [url, expiresAt]
+      properties:
+        url: { type: string, format: uri }
+        expiresAt: { type: string, format: date-time }
+
+    Chunk:
+      type: object
+      required: [id, documentId, version, chunkIndex, content]
+      properties:
+        id: { type: string, format: uuid }
+        documentId: { type: string, format: uuid }
+        documentTitle: { type: string }
+        version: { type: integer }
+        chunkIndex: { type: integer }
+        pageNumber: { type: integer, nullable: true }
+        sectionTitle: { type: string, nullable: true }
+        content: { type: string }
+
+    Citation:
+      type: object
+      required: [citationNumber, documentId, documentTitle, version, chunkId, snippet, score]
+      properties:
+        citationNumber: { type: integer, minimum: 1, description: 'Matches the [n] marker in the answer text' }
+        documentId: { type: string, format: uuid }
+        documentTitle: { type: string }
+        department: { $ref: '#/components/schemas/DepartmentCode' }
+        version: { type: integer }
+        pageNumber: { type: integer, nullable: true }
+        sectionTitle: { type: string, nullable: true }
+        chunkId: { type: string, format: uuid }
+        snippet: { type: string, description: '<= 300 chars from the chunk' }
+        score: { type: number, minimum: 0, maximum: 1 }
+
+    SearchMode:
+      type: string
+      enum: [HYBRID, SEMANTIC, KEYWORD]
+    SearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query: { type: string, minLength: 1, maxLength: 1000 }
+        mode: { allOf: [{ $ref: '#/components/schemas/SearchMode' }], default: HYBRID }
+        topK: { type: integer, minimum: 1, maximum: 50, default: 10 }
+        departments:
+          type: array
+          description: Optional narrowing; intersected server-side with the caller's allowedDepartments.
+          items: { $ref: '#/components/schemas/DepartmentCode' }
+        categories:
+          type: array
+          items: { $ref: '#/components/schemas/DocumentCategory' }
+    SearchResult:
+      type: object
+      required: [chunkId, documentId, documentTitle, department, version, content, score]
+      properties:
+        chunkId: { type: string, format: uuid }
+        documentId: { type: string, format: uuid }
+        documentTitle: { type: string }
+        department: { $ref: '#/components/schemas/DepartmentCode' }
+        category: { $ref: '#/components/schemas/DocumentCategory' }
+        version: { type: integer }
+        pageNumber: { type: integer, nullable: true }
+        sectionTitle: { type: string, nullable: true }
+        content: { type: string }
+        score: { type: number }
+        semanticScore: { type: number, nullable: true }
+        keywordScore: { type: number, nullable: true }
+    SearchResponse:
+      type: object
+      required: [query, mode, results, latencyMs]
+      properties:
+        query: { type: string }
+        mode: { $ref: '#/components/schemas/SearchMode' }
+        results: { type: array, items: { $ref: '#/components/schemas/SearchResult' } }
+        latencyMs: { type: integer }
+
+    ChatRequest:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string, minLength: 1, maxLength: 2000 }
+        conversationId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Omit/null to start a new conversation. core-api sends the last 6 messages as history to ai-service.
+        departments:
+          type: array
+          description: Optional narrowing; intersected server-side with allowedDepartments.
+          items: { $ref: '#/components/schemas/DepartmentCode' }
+    ChatResponse:
+      type: object
+      required: [queryId, conversationId, messageId, answer, answered, confidence, citations, latencyMs]
+      properties:
+        queryId: { type: string, format: uuid }
+        conversationId: { type: string, format: uuid }
+        messageId: { type: string, format: uuid }
+        answer: { type: string, description: 'Markdown with [n] citation markers' }
+        answered: { type: boolean, description: false = not found in allowed documents (recorded as knowledge gap) }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        citations: { type: array, items: { $ref: '#/components/schemas/Citation' } }
+        latencyMs: { type: integer }
+
+    ChatMessage:
+      type: object
+      required: [id, role, content, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        role: { type: string, enum: [USER, ASSISTANT] }
+        content: { type: string }
+        citations: { type: array, items: { $ref: '#/components/schemas/Citation' } }
+        answered: { type: boolean, nullable: true }
+        feedback: { type: string, enum: [UP, DOWN], nullable: true }
+        createdAt: { type: string, format: date-time }
+    Conversation:
+      type: object
+      required: [id, title, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string, description: First user message truncated to 80 chars }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ConversationDetail:
+      allOf:
+        - $ref: '#/components/schemas/Conversation'
+        - type: object
+          required: [messages]
+          properties:
+            messages: { type: array, items: { $ref: '#/components/schemas/ChatMessage' } }
+    ConversationPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/Conversation' } }
+    FeedbackRequest:
+      type: object
+      required: [rating]
+      properties:
+        rating: { type: string, enum: [UP, DOWN] }
+        comment: { type: string, maxLength: 1000 }
+
+    AnalyticsSummary:
+      type: object
+      required: [totalQueries, answeredRate, avgLatencyMs, activeUsers, totalDocuments, indexedDocuments, openKnowledgeGaps, positiveFeedbackRate]
+      properties:
+        totalQueries: { type: integer }
+        answeredRate: { type: number, description: 0..1 }
+        avgLatencyMs: { type: integer }
+        p95LatencyMs: { type: integer }
+        activeUsers: { type: integer }
+        totalDocuments: { type: integer }
+        indexedDocuments: { type: integer }
+        failedDocuments: { type: integer }
+        openKnowledgeGaps: { type: integer }
+        positiveFeedbackRate: { type: number, nullable: true, description: '0..1, null when no feedback' }
+        queriesByDepartment:
+          type: object
+          additionalProperties: { type: integer }
+          example: { HR: 120, ENGINEERING: 87 }
+    TimeSeriesPoint:
+      type: object
+      required: [date, queries, unanswered]
+      properties:
+        date: { type: string, format: date }
+        queries: { type: integer }
+        unanswered: { type: integer }
+    TopQuery:
+      type: object
+      required: [query, count, answeredRate]
+      properties:
+        query: { type: string, description: 'normalized (lower-cased, trimmed)' }
+        count: { type: integer }
+        answeredRate: { type: number }
+    TopDocument:
+      type: object
+      required: [documentId, title, department, citationCount]
+      properties:
+        documentId: { type: string, format: uuid }
+        title: { type: string }
+        department: { $ref: '#/components/schemas/DepartmentCode' }
+        citationCount: { type: integer }
+    KnowledgeGap:
+      type: object
+      required: [id, sampleQuery, department, occurrences, status, firstSeenAt, lastSeenAt]
+      properties:
+        id: { type: string, format: uuid }
+        sampleQuery: { type: string }
+        normalizedQuery: { type: string }
+        department: { $ref: '#/components/schemas/DepartmentCode' }
+        occurrences: { type: integer }
+        status: { $ref: '#/components/schemas/KnowledgeGapStatus' }
+        notes: { type: string, nullable: true }
+        firstSeenAt: { type: string, format: date-time }
+        lastSeenAt: { type: string, format: date-time }
+        resolvedAt: { type: string, format: date-time, nullable: true }
+    KnowledgeGapPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/KnowledgeGap' } }
+    UpdateKnowledgeGapRequest:
+      type: object
+      properties:
+        status: { $ref: '#/components/schemas/KnowledgeGapStatus' }
+        notes: { type: string, maxLength: 2000 }
+    AuditLog:
+      type: object
+      required: [id, occurredAt, action]
+      properties:
+        id: { type: integer, format: int64 }
+        occurredAt: { type: string, format: date-time }
+        action: { $ref: '#/components/schemas/AuditAction' }
+        actorUserId: { type: string, format: uuid, nullable: true }
+        actorEmail: { type: string, nullable: true }
+        actorRole: { $ref: '#/components/schemas/Role' }
+        actorDepartment: { $ref: '#/components/schemas/DepartmentCode' }
+        resourceType: { type: string, nullable: true, example: DOCUMENT }
+        resourceId: { type: string, nullable: true }
+        metadata: { type: object, additionalProperties: true }
+        ipAddress: { type: string, nullable: true }
+    AuditLogPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/AuditLog' } }

@@ -1,0 +1,102 @@
+{
+  "devPassword": "Password123!",
+  "note": "DEV/TEST ONLY - fictional users for local and staging demo",
+  "users": [
+    {
+      "id": "11111111-1111-4111-8111-000000000001",
+      "email": "alice.admin@helios.example.com",
+      "fullName": "Alice Admin",
+      "role": "ADMIN",
+      "department": "GENERAL",
+      "active": true
+    },
+    {
+      "id": "11111111-1111-4111-8111-000000000002",
+      "email": "harper.hrmgr@helios.example.com",
+      "fullName": "Harper Hughes",
+      "role": "MANAGER",
+      "department": "HR",
+      "active": true
+    },
+    {
+      "id": "11111111-1111-4111-8111-000000000003",
+      "email": "hannah.hr@helios.example.com",
+      "fullName": "Hannah Reyes",
+      "role": "EMPLOYEE",
+      "department": "HR",
+      "active": true
+    },
+    {
+      "id": "11111111-1111-4111-8111-000000000004",
+      "email": "ethan.engmgr@helios.example.com",
+      "fullName": "Ethan Park",
+      "role": "MANAGER",
+      "department": "ENGINEERING",
+      "active": true
+    },
+    {
+      "id": "11111111-1111-4111-8111-000000000005",
+      "email": "eric.eng@helios.example.com",
+      "fullName": "Eric Nguyen",
+      "role": "EMPLOYEE",
+      "department": "ENGINEERING",
+      "active": true
+    },
+    {
+      "id": "11111111-1111-4111-8111-000000000006",
+      "email": "frank.finmgr@helios.example.com",
+      "fullName": "Frank Ortiz",
+      "role": "MANAGER",
+      "department": "FINANCE",
+      "active": true
+    },
+    {
+      "id": "11111111-1111-4111-8111-000000000007",
+      "email": "fiona.fin@helios.example.com",
+      "fullName": "Fiona Brooks",
+      "role": "EMPLOYEE",
+      "department": "FINANCE",
+      "active": true
+    },
+    {
+      "id": "11111111-1111-4111-8111-000000000008",
+      "email": "lena.legalmgr@helios.example.com",
+      "fullName": "Lena Schmidt",
+      "role": "MANAGER",
+      "department": "LEGAL",
+      "active": true
+    },
+    {
+      "id": "11111111-1111-4111-8111-000000000009",
+      "email": "leo.legal@helios.example.com",
+      "fullName": "Leo Martins",
+      "role": "EMPLOYEE",
+      "department": "LEGAL",
+      "active": true
+    },
+    {
+      "id": "11111111-1111-4111-8111-000000000010",
+      "email": "mark.mktmgr@helios.example.com",
+      "fullName": "Mark Olsen",
+      "role": "MANAGER",
+      "department": "MARKETING",
+      "active": true
+    },
+    {
+      "id": "11111111-1111-4111-8111-000000000011",
+      "email": "maya.mkt@helios.example.com",
+      "fullName": "Maya Chen",
+      "role": "EMPLOYEE",
+      "department": "MARKETING",
+      "active": true
+    },
+    {
+      "id": "11111111-1111-4111-8111-000000000012",
+      "email": "ivan.inactive@helios.example.com",
+      "fullName": "Ivan Idle",
+      "role": "EMPLOYEE",
+      "department": "MARKETING",
+      "active": false
+    }
+  ]
+}

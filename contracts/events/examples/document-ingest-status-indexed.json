@@ -1,0 +1,15 @@
+{
+  "eventId": "6c1d8f2b-4a8e-4e66-8b1f-3a2d9c7e0f12",
+  "eventType": "DOCUMENT_INGEST_STATUS",
+  "occurredAt": "2026-10-19T17:05:41Z",
+  "traceId": "c0a8012e-6a2b-4f3d-8e1c-9d7b5a3f2e10",
+  "documentId": "a1f3c9e2-4b7d-4e8a-9c1f-2d3e4f5a6b70",
+  "versionId": "b2e4d0f3-5c8e-4f9b-8d2a-3e4f5a6b7c81",
+  "status": "INDEXED",
+  "pageCount": 3,
+  "chunkCount": 9,
+  "embeddingTokens": 3920,
+  "processingMs": 40712,
+  "errorCode": null,
+  "errorMessage": null
+}

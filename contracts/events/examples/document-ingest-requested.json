@@ -1,0 +1,21 @@
+{
+  "eventId": "5b0c7e1a-3f7d-4d55-9a0e-2f1c8b6d9e01",
+  "eventType": "DOCUMENT_INGEST_REQUESTED",
+  "occurredAt": "2026-10-19T17:05:00Z",
+  "traceId": "c0a8012e-6a2b-4f3d-8e1c-9d7b5a3f2e10",
+  "documentId": "a1f3c9e2-4b7d-4e8a-9c1f-2d3e4f5a6b70",
+  "versionId": "b2e4d0f3-5c8e-4f9b-8d2a-3e4f5a6b7c81",
+  "version": 1,
+  "previousVersionId": null,
+  "s3Bucket": "ekm-documents-local",
+  "s3Key": "documents/HR/a1f3c9e2-4b7d-4e8a-9c1f-2d3e4f5a6b70/v1/hr-001_pto_and_leave_policy.pdf",
+  "contentType": "application/pdf",
+  "originalFilename": "HR-001_PTO_and_Leave_Policy.pdf",
+  "sizeBytes": 48211,
+  "title": "PTO and Leave Policy",
+  "department": "HR",
+  "category": "POLICY",
+  "tags": ["pto", "leave", "benefits"],
+  "author": "People Operations",
+  "uploadedBy": "11111111-1111-4111-8111-000000000002"
+}

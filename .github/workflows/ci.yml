@@ -1,0 +1,82 @@
+# CI for every PR and push to develop/main. Owner: Manali.
+# Service jobs are skipped automatically until that service's build file exists.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Contracts (OpenAPI lint + event schemas)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: make lint-contracts
+      - name: Validate JSONL / CSV resources parse
+        run: |
+          python3 -c "import json; [json.loads(l) for l in open('resources/eval/golden_qa.jsonl')]"
+          python3 -c "import csv; list(csv.DictReader(open('resources/corpus/manifest.csv')))"
+
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.f.outputs.backend }}
+      frontend: ${{ steps.f.outputs.frontend }}
+      ai: ${{ steps.f.outputs.ai }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: f
+        run: |
+          echo "backend=$([ -f ayushi_backend/gradlew ] && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "frontend=$([ -f changhyun_frontend/package.json ] && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "ai=$([ -f vedanti_ai/pyproject.toml ] && echo true || echo false)" >> $GITHUB_OUTPUT
+
+  backend:
+    needs: detect
+    if: needs.detect.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: ayushi_backend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21, cache: gradle }
+      - run: ./gradlew --no-daemon build   # Testcontainers works on GitHub-hosted runners
+
+  frontend:
+    needs: detect
+    if: needs.detect.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: changhyun_frontend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: pnpm, cache-dependency-path: changhyun_frontend/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm gen:api && git diff --exit-code src/lib/api/schema.d.ts   # generated types must match the contract
+      - run: pnpm lint
+      - run: pnpm build
+
+  ai:
+    needs: detect
+    if: needs.detect.outputs.ai == 'true'
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: vedanti_ai } }
+    env:
+      AI_PROVIDER: fake
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: pytest -q

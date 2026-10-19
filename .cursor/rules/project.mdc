@@ -1,0 +1,8 @@
+---
+description: Project-wide rules for the Enterprise Knowledge Management Platform
+alwaysApply: true
+---
+
+Read and follow `AGENTS.md` at the repo root before doing anything. It defines folder ownership,
+the contracts-first rule (`contracts/` is the source of truth for every API, event, DB table, env var
+and port), naming conventions, and the `questions/` agent-to-agent mailbox.

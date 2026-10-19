@@ -1,0 +1,92 @@
+# Local stack. Owner: Manali.
+#   make up        -> infra only (postgres + localstack)
+#   make up-apps   -> infra + every application service (profile "apps")
+# Container-to-container hostnames are the service names below (contracts/ports-and-services.md).
+name: ekm
+
+x-app-env: &app-env
+  env_file: .env
+  environment:
+    POSTGRES_HOST: postgres
+    AWS_ENDPOINT_URL: http://localstack:4566
+    AI_SERVICE_URL: http://ai-service:8000
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ekm}
+      POSTGRES_USER: ${POSTGRES_USER:-ekm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ekm_local_password}
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ekm} -d ${POSTGRES_DB:-ekm}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  localstack:
+    image: localstack/localstack:3.8   # pinned: newer images may require a LocalStack auth token
+    environment:
+      SERVICES: s3,sqs
+      AWS_DEFAULT_REGION: ${AWS_REGION:-us-west-2}
+      S3_DOCUMENTS_BUCKET: ${S3_DOCUMENTS_BUCKET:-ekm-documents-local}
+      SQS_DOCUMENT_INGEST_QUEUE: ${SQS_DOCUMENT_INGEST_QUEUE:-ekm-document-ingest}
+      SQS_DOCUMENT_STATUS_QUEUE: ${SQS_DOCUMENT_STATUS_QUEUE:-ekm-document-status}
+      SQS_AUDIT_EVENTS_QUEUE: ${SQS_AUDIT_EVENTS_QUEUE:-ekm-audit-events}
+    ports: ["4566:4566"]
+    volumes:
+      - ./manali_devops/localstack/init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/init/ready | grep -q '\"completed\": true'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # ---------------------------------------------------------------- apps
+  core-api:
+    profiles: ["apps"]
+    build:
+      context: .                                   # root context so the image can COPY contracts/database/migrations
+      dockerfile: ayushi_backend/core-api/Dockerfile
+    <<: *app-env
+    ports: ["8080:8080"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      localstack: { condition: service_healthy }
+
+  audit-service:
+    profiles: ["apps"]
+    build:
+      context: .
+      dockerfile: ayushi_backend/audit-service/Dockerfile
+    <<: *app-env
+    ports: ["8081:8081"]
+    depends_on:
+      core-api: { condition: service_started }      # core-api runs the Flyway migrations
+
+  ai-service:
+    profiles: ["apps"]
+    build:
+      context: vedanti_ai
+    <<: *app-env
+    ports: ["8000:8000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      localstack: { condition: service_healthy }
+
+  web:
+    profiles: ["apps"]
+    build:
+      context: changhyun_frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
+    env_file: .env
+    ports: ["3000:3000"]
+    depends_on:
+      - core-api
+
+volumes:
+  pgdata:

@@ -1,0 +1,14 @@
+{
+  "eventId": "7d2e9a3c-5b9f-4f77-9c2a-4b3e0d8f1a23",
+  "eventType": "DOCUMENT_INGEST_STATUS",
+  "occurredAt": "2026-10-19T17:06:02Z",
+  "traceId": "d1b9023f-7b3c-4a4e-9f2d-0e8c6b4a3f21",
+  "documentId": "c3a5e1f4-6d9f-4a0c-9e3b-4f5a6b7c8d92",
+  "versionId": "d4b6f2a5-7e0a-4b1d-8f4c-5a6b7c8d9ea3",
+  "status": "FAILED",
+  "pageCount": null,
+  "chunkCount": null,
+  "processingMs": 812,
+  "errorCode": "NO_EXTRACTABLE_TEXT",
+  "errorMessage": "PDF contains no text layer (scanned image?). OCR is not supported."
+}

@@ -1,0 +1,28 @@
+{
+  "eventId": "8e3f0b4d-6c0a-4a88-8d3b-5c4f1e9a2b34",
+  "eventType": "AUDIT_EVENT",
+  "occurredAt": "2026-10-19T17:10:12Z",
+  "traceId": "e2c0134a-8c4d-4b5f-8a3e-1f9d7c5b4a32",
+  "action": "QUERY_ASKED",
+  "actorUserId": "11111111-1111-4111-8111-000000000003",
+  "actorEmail": "hannah.hr@helios.example.com",
+  "actorRole": "EMPLOYEE",
+  "actorDepartment": "HR",
+  "resourceType": "QUERY",
+  "resourceId": "0b2f4c6e-8a1c-4e3a-9b5d-7f9e1a3c5e70",
+  "ipAddress": "127.0.0.1",
+  "userAgent": "Mozilla/5.0",
+  "metadata": {
+    "queryId": "0b2f4c6e-8a1c-4e3a-9b5d-7f9e1a3c5e70",
+    "queryText": "How many PTO days can I carry over to next year?",
+    "conversationId": "9a1c3e5f-7b9d-4f1a-8c3e-5d7f9b1d3f50",
+    "allowedDepartments": ["HR", "GENERAL"],
+    "answered": true,
+    "confidence": 0.84,
+    "latencyMs": 2140,
+    "citedDocumentIds": ["a1f3c9e2-4b7d-4e8a-9c1f-2d3e4f5a6b70"],
+    "model": "gpt-4o-mini",
+    "promptTokens": 2311,
+    "completionTokens": 96
+  }
+}

@@ -1,0 +1,11 @@
+# Glossary
+- **RAG** — Retrieval-Augmented Generation: retrieve relevant chunks, give them to the LLM as context, answer only from them.
+- **Chunk** — a passage of a document (~500 tokens) with page/section metadata and an embedding.
+- **Embedding** — 1536-dimensional vector from `text-embedding-3-small`; similar meaning → small cosine distance.
+- **Hybrid search** — combine semantic (vector) and keyword (full-text) scores.
+- **Pre-filtering** — apply the department `WHERE` clause before ranking, so restricted chunks are never candidates.
+- **Grounded answer** — every claim supported by a cited chunk; otherwise "not found".
+- **Knowledge gap** — a question the corpus could not answer (`answered=false`), aggregated for admins.
+- **allowedDepartments** — departments a user may read: own + GENERAL (ADMIN: all). Computed only by core-api.
+- **DLQ** — dead-letter queue receiving messages that failed 3 times.
+- **Faithfulness / Relevance / Recall@k** — RAG evaluation metrics (see `resources/eval/README.md`).
