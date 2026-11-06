@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: ekm-audit-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:ekm}}
+    username: ${POSTGRES_USER:ekm}
+    password: ${POSTGRES_PASSWORD:ekm_local_password}
+    driver-class-name: org.postgresql.Driver
 
 management:
   endpoints:

@@ -22,14 +22,15 @@ Each service's `Dockerfile` + health endpoint (see `contracts/ports-and-services
 
 ## Milestone 1 — catch-up (was due Oct 11) — finish by **Oct 21**
 - [x] Repo structure, `AGENTS.md`, contracts v1, member TODOs, questions mailbox, sample data (2026-10-19)
-- [ ] Get every member to acknowledge `questions/to-all/2026-10-19_from-manali_confirm-architecture-and-contracts-v1.md`
-- [ ] Protect `main` and `develop` (PR required, 1 approval, CI green); set `develop` as default PR target
-- [ ] Verify `make up` on Mac + Windows (WSL2): postgres+pgvector healthy, LocalStack creates bucket + 6 queues, `make seed` works
-- [ ] Docker base templates for Java (Temurin 21, multi-stage), Node 20 (Next standalone), Python 3.11-slim — add to `docs/` or each owner's folder via PR they approve
+- [ ] Get every member to acknowledge `questions/to-all/2026-10-19_from-manali_confirm-architecture-and-contracts-v1.md` — awaiting Ayushi, Changhyun, and Vedanti responses
+- [x] Protect `main` and `develop` (PR required, 1 approval, CI green; stale reviews dismissed; force-push/deletion disabled; admins enforced) and set `develop` as the repository default branch — configured 2026-11-06.
+- [ ] Verify `make up` on Mac + Windows (WSL2): macOS infrastructure passed (`postgres`, `localstack`, S3 bucket, 6 queues, and `make seed` on 2026-11-06); Windows/WSL2 and full app startup remain pending because `vedanti_ai/Dockerfile` and `changhyun_frontend/Dockerfile` are not present
+- [x] Docker base templates for Java (Temurin 21, multi-stage), Node 20 (Next standalone), Python 3.11-slim — documented in `manali_devops/docs/docker-templates.md` (2026-11-06)
+- [x] Cross-platform local validation command and Mac/Linux/WSL2 checklist — `make validate-local` and `manali_devops/docs/local-validation.md` (2026-11-06)
 - [x] CI (`.github/workflows/ci.yml`): contracts lint + event examples validation; backend job detects the Maven parent POM, uses Java 21/Maven caching, and builds with the Maven wrapper (2026-11-06)
 
 ## Milestone 2 — S3, SQS, compose (Oct 12 – Oct 25)
-- [ ] LocalStack init script final (bucket, CORS for presigned URLs, queues with redrive policy maxReceiveCount=3, visibility 300 s on ingest)
+- [x] LocalStack init script finalized and validated: bucket, CORS, 3 queues + 3 DLQs, redrive policy maxReceiveCount=3, visibility 300 s on ingest (2026-11-06)
 - [ ] Terraform skeleton (`infra/terraform`): remote state (S3 + DynamoDB lock), VPC (2 AZ, public/private subnets), ECR repos ×4
 - [ ] Terraform: S3 bucket with **KMS (SSE-KMS)**, block public access, versioning; SQS queues + DLQs; IAM policies (core-api: S3 put/get + SQS send ingest/audit + receive status; ai-service: S3 get + SQS receive ingest + send status; audit-service: SQS receive audit)
 - [ ] `docker-compose.yml` `apps` profile works with the new backend images after Ayushi resolves the core-api port/database configuration
