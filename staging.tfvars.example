@@ -1,0 +1,12 @@
+# Shared non-secret staging configuration for Terraform.
+# Copy to staging.tfvars before applying. staging.tfvars is git-ignored.
+
+environment = "staging"
+aws_region  = "us-west-2"
+
+# Existing AWS S3 bucket created for the staging environment.
+s3_documents_bucket = "ekm-documents-staging"
+s3_kms_key_arn      = "arn:aws:kms:us-west-2:474632925730:alias/aws/s3"
+s3_bucket_key_enabled       = true
+s3_bucket_versioning_enabled = true
+s3_block_public_access      = true

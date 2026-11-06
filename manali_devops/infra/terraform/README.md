@@ -14,4 +14,6 @@ iam.tf         # task roles per service (least privilege), GitHub OIDC deploy ro
 secrets.tf     # JWT_SECRET, OPENAI_API_KEY, INTERNAL_SERVICE_TOKEN, DB password
 cloudwatch.tf  # log groups, alarms, dashboard, SNS
 ```
-Environment values in `staging.tfvars` (git-ignored; commit `staging.tfvars.example`).
+Shared environment values live in the repository-root `staging.tfvars.example`.
+Copy it to `staging.tfvars` (git-ignored) before applying Terraform. Never add secrets
+to either file; runtime secrets belong in AWS Secrets Manager.
