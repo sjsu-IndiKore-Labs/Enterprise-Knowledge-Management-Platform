@@ -17,3 +17,20 @@ cloudwatch.tf  # log groups, alarms, dashboard, SNS
 Shared environment values live in the repository-root `staging.tfvars.example`.
 Copy it to `staging.tfvars` (git-ignored) before applying Terraform. Never add secrets
 to either file; runtime secrets belong in AWS Secrets Manager.
+
+The current Terraform foundation defines ECS task roles for the existing staging bucket:
+
+- `core-api` can list and read/write `documents/*` and use the S3 KMS key.
+- `ai-service` can list/read `documents/*` and decrypt the S3 KMS key.
+- `web` and `audit-service` receive no S3 permissions.
+
+Run from this directory:
+
+```bash
+cp ../../staging.tfvars.example staging.tfvars
+terraform init
+terraform plan -var-file=staging.tfvars
+```
+
+The existing bucket must be referenced or imported into state before applying. The task
+roles can later be attached to ECS task definitions in the Milestone 4 configuration.
