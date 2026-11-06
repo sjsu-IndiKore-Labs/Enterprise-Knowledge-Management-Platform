@@ -48,6 +48,7 @@ venv/
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
+staging.env
 .terraform.lock.hcl
 
 # Local data / logs
