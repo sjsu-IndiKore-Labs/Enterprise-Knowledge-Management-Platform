@@ -4,6 +4,10 @@
 !.env.example
 *.pem
 *.key
+*-local.properties
+*-local.yml
+Enterprise_Knowledge_Platform_Project_Abstract.*
+generate_*.py
 
 # OS / editors
 .DS_Store
