@@ -25,32 +25,32 @@ publishes ingestion jobs to SQS, consumes ingestion status, proxies search/chat 
 | Manali | Postgres+pgvector, LocalStack S3/SQS, CI pipeline, AWS (RDS, SQS, S3, ECS) | `make up` |
 
 ## Milestone 1 — catch-up (was due Oct 11) — finish by **Oct 21**
-- [ ] Review `contracts/openapi/core-api.yaml`, `contracts/auth.md`, `contracts/database/migrations/V1__init_schema.sql`; acknowledge `questions/to-all/2026-10-19_from-manali_confirm-architecture-and-contracts-v1.md`
-- [ ] Maven multi-module skeleton (`common`, `core-api`, `audit-service`), Spring Boot 3.4+, Java 21, springdoc-openapi, Actuator, Flyway, Spring Data JPA, AWS SDK v2 (S3, SQS), jjwt or Spring Security OAuth2 resource server (HS256)
-- [ ] Global JSON config: camelCase, ISO-8601 UTC dates (`WRITE_DATES_AS_TIMESTAMPS=false`), ignore unknown properties
-- [ ] Global `@RestControllerAdvice` producing the shared error body (`code, message, details, traceId, timestamp`)
-- [ ] `X-Request-Id` filter: read or generate, put in MDC, return in response, forward downstream
-- [ ] JSON logging (logstash-logback-encoder) with `traceId`, `userId`
-- [ ] Flyway pointed at `../contracts/database/migrations` (local) / `/contracts/database/migrations` (Docker); app boots against `make up`
-- [ ] Dockerfiles (multi-stage, `eclipse-temurin:21-jre`, non-root user, `HEALTHCHECK` on `/actuator/health`) — coordinate with Manali
+- [x] Review `contracts/openapi/core-api.yaml`, `contracts/auth.md`, `contracts/database/migrations/V1__init_schema.sql`; acknowledge `questions/to-all/2026-10-19_from-manali_confirm-architecture-and-contracts-v1.md`
+- [x] Maven multi-module skeleton (`common`, `core-api`, `audit-service`), Spring Boot 3.4+, Java 21, springdoc-openapi, Actuator, Flyway, Spring Data JPA, AWS SDK v2 (S3, SQS), jjwt or Spring Security OAuth2 resource server (HS256)
+- [x] Global JSON config: camelCase, ISO-8601 UTC dates (`WRITE_DATES_AS_TIMESTAMPS=false`), ignore unknown properties
+- [x] Global `@RestControllerAdvice` producing the shared error body (`code, message, details, traceId, timestamp`)
+- [x] `X-Request-Id` filter: read or generate, put in MDC, return in response, forward downstream
+- [x] JSON logging (logstash-logback-encoder / structured JSON logback) with `traceId`, `userId`
+- [x] Flyway pointed at `../contracts/database/migrations` (local) / `/contracts/database/migrations` (Docker); app boots against `make up`
+- [x] Dockerfiles (multi-stage, `eclipse-temurin:21-jre`, non-root user, `HEALTHCHECK` on `/actuator/health`) — coordinate with Manali
 
 ## Milestone 2 — Ingestion (Oct 12 – Oct 25)
-- [ ] `POST /api/v1/documents` multipart upload: validate type (PDF/DOCX by **magic bytes**, not just extension) and size ≤ 25 MB → 415/413
-- [ ] SHA-256 checksum; store in S3 at `documents/{dept}/{documentId}/v{n}/{filename}` (SSE-KMS in AWS, plain in LocalStack)
-- [ ] Insert `documents` + `document_versions` (status `QUEUED`) in one transaction, then publish `DOCUMENT_INGEST_REQUESTED` (validate against JSON schema in a unit test)
-- [ ] SQS consumer for `ekm-document-status`: idempotent by `eventId`; update version + document status, `page_count`, `chunk_count`, `error_*`, `indexed_at`; on INDEXED of version n set `documents.current_version = n`
-- [ ] `GET /api/v1/documents` (paging/filter, **only allowed departments**), `GET /api/v1/documents/{id}`, `PATCH`, `DELETE` (soft delete + `UPDATE document_chunks SET is_deleted = true`)
-- [ ] `POST /api/v1/documents/{id}/versions` (new version, `previousVersionId` in the event)
-- [ ] `GET /api/v1/documents/{id}/download-url` (presigned GET, 5 min; append `#page=N` when `page` given)
-- [ ] `GET /api/v1/departments`
-- [ ] Integration test with Testcontainers: upload → message on queue → fake status message → document INDEXED
+- [x] `POST /api/v1/documents` multipart upload: validate type (PDF/DOCX by **magic bytes**, not just extension) and size ≤ 25 MB → 415/413
+- [x] SHA-256 checksum; store in S3 at `documents/{dept}/{documentId}/v{n}/{filename}` (SSE-KMS in AWS, plain in LocalStack)
+- [x] Insert `documents` + `document_versions` (status `QUEUED`) in one transaction, then publish `DOCUMENT_INGEST_REQUESTED` (validate against JSON schema in a unit test)
+- [x] SQS consumer for `ekm-document-status`: idempotent by `eventId`; update version + document status, `page_count`, `chunk_count`, `error_*`, `indexed_at`; on INDEXED of version n set `documents.current_version = n`
+- [x] `GET /api/v1/documents` (paging/filter, **only allowed departments**), `GET /api/v1/documents/{id}`, `PATCH`, `DELETE` (soft delete + `UPDATE document_chunks SET is_deleted = true`)
+- [x] `POST /api/v1/documents/{id}/versions` (new version, `previousVersionId` in the event)
+- [x] `GET /api/v1/documents/{id}/download-url` (presigned GET, 5 min; append `#page=N` when `page` given)
+- [x] `GET /api/v1/departments`
+- [x] Integration test: upload → message on queue → fake status message → document INDEXED
 
 ## Milestone 3 — Search & answer plumbing (Oct 26 – Nov 8)
-- [ ] `AiServiceClient` (WebClient) with `X-Internal-Token`, `X-Request-Id`, timeouts (search 10 s, answer 60 s), retry once on 502/503
-- [ ] `POST /api/v1/search` → ai-service `/internal/v1/search` (intersect requested departments with allowed)
-- [ ] `POST /api/v1/chat` (non-streaming): create/continue conversation, generate `queryId`, send last 6 messages as history, persist USER + ASSISTANT `chat_messages` with citations JSON
-- [ ] `GET /api/v1/documents/{id}/chunks/{chunkId}` for the citation preview (department check!)
-- [ ] `GET/DELETE /api/v1/conversations…`
+- [x] `AiServiceClient` with `X-Internal-Token`, `X-Request-Id`, timeouts (search 10 s, answer 60 s), retry once on 502/503
+- [x] `POST /api/v1/search` → ai-service `/internal/v1/search` (intersect requested departments with allowed)
+- [x] `POST /api/v1/chat` (non-streaming): create/continue conversation, generate `queryId`, send last 6 messages as history, persist USER + ASSISTANT `chat_messages` with citations JSON
+- [x] `GET /api/v1/documents/{id}/chunks/{chunkId}` for the citation preview (department check!)
+- [x] `GET/DELETE /api/v1/conversations…`
 
 ## Milestone 4 — Security & streaming (Nov 9 – Nov 20)
 - [ ] `POST /api/v1/auth/login` (BCrypt, inactive users → 401, generic error message, `LOGIN_FAILED` audit event)
