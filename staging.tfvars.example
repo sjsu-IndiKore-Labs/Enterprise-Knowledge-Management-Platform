@@ -10,3 +10,4 @@ s3_kms_key_arn      = "arn:aws:kms:us-west-2:474632925730:alias/aws/s3"
 s3_bucket_key_enabled       = true
 s3_bucket_versioning_enabled = true
 s3_block_public_access      = true
+s3_allowed_origins           = ["http://localhost:3000"]

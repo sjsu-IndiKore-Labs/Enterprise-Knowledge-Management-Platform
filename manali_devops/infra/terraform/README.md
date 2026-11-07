@@ -29,6 +29,25 @@ The current Terraform foundation defines ECS task roles for the existing staging
 - `ai-service` can list/read `documents/*` and decrypt the S3 KMS key.
 - `web` and `audit-service` receive no S3 permissions.
 
+Before initializing the main stack for the first time, bootstrap the remote state resources:
+
+```bash
+cd bootstrap
+terraform init
+terraform apply
+cd ..
+terraform init -migrate-state
+```
+
+The bootstrap stack creates the encrypted, versioned state bucket
+`ekm-terraform-state-474632925730` and the pay-per-request DynamoDB lock table
+`ekm-terraform-locks`. The existing staging S3 bucket must be imported into the main
+stack before the first apply:
+
+```bash
+terraform import -var-file=../../../staging.tfvars.example aws_s3_bucket.documents ekm-documents-staging
+```
+
 The staging SQS configuration creates these contract queues and DLQs:
 
 - `ekm-staging-document-ingest` / `ekm-staging-document-ingest-dlq` — 300-second visibility timeout

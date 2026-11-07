@@ -48,6 +48,7 @@ venv/
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
+*.tfplan
 staging.env
 .terraform.lock.hcl
 

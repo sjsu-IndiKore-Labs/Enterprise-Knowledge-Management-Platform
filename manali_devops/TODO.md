@@ -31,8 +31,8 @@ Each service's `Dockerfile` + health endpoint (see `contracts/ports-and-services
 
 ## Milestone 2 — S3, SQS, compose (Oct 12 – Oct 25)
 - [x] LocalStack init script finalized and validated: bucket, CORS, 3 queues + 3 DLQs, redrive policy maxReceiveCount=3, visibility 300 s on ingest (2026-11-06)
-- [ ] Terraform skeleton (`infra/terraform`): remote state (S3 + DynamoDB lock), VPC (2 AZ, public/private subnets), ECR repos ×4
-- [ ] Terraform: S3 bucket with **KMS (SSE-KMS)**, block public access, versioning; SQS queues + DLQs; IAM policies (core-api: S3 put/get + SQS send ingest/audit + receive status; ai-service: S3 get + SQS receive ingest + send status; audit-service: SQS receive audit). SQS/DLQs and task-role policies were applied to staging on 2026-11-06; S3 Terraform resource remains pending because the bucket already exists and is managed outside this module.
+- [x] Terraform foundation: encrypted remote state in S3 with DynamoDB locking, VPC across 2 AZs with public/private subnets and NAT egress, and four ECR repositories — applied to staging on 2026-11-06
+- [x] Terraform: existing staging S3 bucket imported and managed with SSE-KMS, bucket keys, versioning, CORS, ownership controls, and block-public-access settings; SQS/DLQs and task-role policies applied to staging on 2026-11-06
 - [ ] `docker-compose.yml` `apps` profile works with the new backend images after Ayushi resolves the core-api port/database configuration
 
 ## Milestone 3 — Database in AWS (Oct 26 – Nov 8)

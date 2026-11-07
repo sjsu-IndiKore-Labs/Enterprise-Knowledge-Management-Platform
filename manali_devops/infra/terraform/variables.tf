@@ -37,3 +37,9 @@ variable "s3_block_public_access" {
   type        = bool
   default     = true
 }
+
+variable "s3_allowed_origins" {
+  description = "Browser origins allowed to use the document bucket CORS configuration."
+  type        = list(string)
+  default     = ["http://localhost:3000"]
+}
