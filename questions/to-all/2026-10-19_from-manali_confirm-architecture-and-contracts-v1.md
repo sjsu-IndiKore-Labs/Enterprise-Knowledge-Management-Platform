@@ -29,3 +29,4 @@ Yes to all. Raise objections as a separate question file in `to-all/` within 2 d
 
 ## Acknowledgements
 - Manali 2026-10-19 ✔
+- Changhyun 2026-11-06 ✔ for 1 to 4. For 5: the remote has no `develop` branch and PR #6 was merged into `main`, so please confirm the branching target. Contract differences found in core-api are in `questions/to-ayushi/2026-11-06_from-changhyun_core-api-differs-from-contract.md`.
