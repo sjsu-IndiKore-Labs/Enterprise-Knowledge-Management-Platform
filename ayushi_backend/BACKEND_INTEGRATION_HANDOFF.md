@@ -1,8 +1,8 @@
-# Backend Integration & Contract Hand-Off (Milestones 1 & 2)
+# Backend Integration & Contract Hand-Off (Milestones 1, 2 & 3)
 
 **Author:** Ayushi (Team Leader, Backend & Security Lead)  
-**Date:** October 28, 2026  
-**Target Audience:** Kevin (Frontend), Vedanti (AI/RAG), Manali (DevOps/Cloud)  
+**Date:** November 6, 2026  
+**Target Audience:** Changhyun (Frontend), Vedanti (AI/RAG), Manali (DevOps/Cloud)  
 **Git Branch:** `ayushi/maven-backend-setup`  
 **Pull Request:** [PR # on GitHub (ayushi/maven-backend-setup into develop)](https://github.com/sjsu-IndiKore-Labs/Enterprise-Knowledge-Management-Platform/pull/new/ayushi/maven-backend-setup)  
 
@@ -10,15 +10,16 @@
 
 ## Executive Summary
 
-The **Milestone 1 backend architecture** and the **Milestone 2 document ingestion contracts** are officially built, tested, and pushed to GitHub.
+The **Milestone 1 backend architecture**, **Milestone 2 document ingestion & S3/SQS pipeline**, and **Milestone 3 hybrid search, RAG chat & citation endpoints** are officially built, tested, and ready for integration.
 
-- **Build System:** Migrated from Gradle to standard **Apache Maven multi-module (Java 21 / Spring Boot 3.4.1)**.
-- **Database:** PostgreSQL initialized with automated **Flyway migrations** (`V1__init_schema.sql`).
+- **Build System:** Standard **Apache Maven multi-module (`common`, `core-api`, `audit-service`)** on Java 21 / Spring Boot 3.4.1.
+- **Database:** PostgreSQL initialized with automated **Flyway migrations** (`V1__init_schema.sql`, `V2__contract_schema_m1_m3.sql`).
 - **Interactive Documentation:** Live Swagger UI / OpenAPI 3.0 spec is up and serving live responses.
+- **Requirement Freeze:** Published at [`requirement-freeze/ayushi_backend_requirement_freeze.md`](../requirement-freeze/ayushi_backend_requirement_freeze.md).
 
 ---
 
-## 1. Frontend Integration Guide (for Kevin / Changhyun)
+## 1. Frontend Integration Guide (for Changhyun)
 
 ### 1.1 Service Endpoints & Swagger UI
 - **Swagger UI Interactive Console:** `http://localhost:8082/swagger-ui.html` *(or `http://localhost:8080/swagger-ui.html` when running via Docker)*
@@ -88,30 +89,50 @@ Use this contract to render search results and citation preview cards:
   ```json
   {
     "query": "What is the parental leave policy?",
-    "authorizedDepartments": ["HR", "GENERAL"],
-    "topK": 5,
-    "minScore": 0.72
+    "mode": "HYBRID",
+    "departments": ["HR", "GENERAL"],
+    "topK": 5
   }
   ```
 - **Response:** `200 OK`
   ```json
   {
     "query": "What is the parental leave policy?",
-    "totalResults": 2,
+    "mode": "HYBRID",
+    "latencyMs": 35,
+    "totalResults": 1,
     "results": [
       {
         "chunkId": "ff7ba59f-d3e9-4e7a-bfb6-6819a5445214",
         "documentId": "1a1e0b04-f651-40ea-a05b-6a5df9b64627",
         "documentTitle": "Enterprise Standard Operating Procedures & Policies.pdf",
         "fileName": "Enterprise_SOP_2026.pdf",
+        "version": 1,
         "pageNumber": 12,
+        "content": "Eligible employees may take up to 16 consecutive weeks of fully paid parental leave following the birth, adoption, or foster placement of a child.",
         "snippet": "Eligible employees may take up to 16 consecutive weeks of fully paid parental leave following the birth, adoption, or foster placement of a child.",
+        "score": 0.925,
         "similarityScore": 0.925,
         "department": "GENERAL"
       }
     ]
   }
   ```
+
+#### E. Grounded RAG Chat (`POST /api/v1/chat`) & Conversations (`/api/v1/conversations`)
+- **`POST /api/v1/chat`** — Creates/continues a conversation, forwards the last 6 messages as history to `ai-service`, and persists `USER` + `ASSISTANT` messages with `citations`.
+- **`GET /api/v1/conversations`** — Paginated list of caller's conversations (newest first).
+- **`GET /api/v1/conversations/{conversationId}`** — Full conversation detail + message list with citations.
+- **`DELETE /api/v1/conversations/{conversationId}`** — Deletes conversation (`204 No Content`).
+
+#### F. Citation Preview, Versioning & Presigned Download URLs
+- **`GET /api/v1/documents/{documentId}`** — Full document metadata + `versions` history.
+- **`PATCH /api/v1/documents/{documentId}`** — Update `title`, `category`, `author`, `tags`.
+- **`DELETE /api/v1/documents/{documentId}`** — Soft-delete document and mark its chunks deleted (`204 No Content`).
+- **`POST /api/v1/documents/{documentId}/versions`** — Upload new version (`v+1`) with `changeNote`.
+- **`GET /api/v1/documents/{documentId}/download-url?page=12`** — Returns 5-minute presigned S3 URL with `#page=12`.
+- **`GET /api/v1/documents/{documentId}/chunks/{chunkId}`** — Returns full chunk text for citation preview panel.
+- **`GET /api/v1/departments`** — Returns department codes and names for UI dropdowns.
 
 ---
 

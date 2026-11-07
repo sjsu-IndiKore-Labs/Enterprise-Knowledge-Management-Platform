@@ -30,6 +30,8 @@
         <springdoc.version>2.7.0</springdoc.version>
         <aws-sdk.version>2.29.38</aws-sdk.version>
         <jjwt.version>0.12.6</jjwt.version>
+        <maven-surefire-plugin.version>3.2.5</maven-surefire-plugin.version>
+        <junit-jupiter.version>5.10.2</junit-jupiter.version>
     </properties>
 
     <dependencyManagement>

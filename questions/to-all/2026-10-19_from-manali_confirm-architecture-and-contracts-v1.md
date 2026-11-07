@@ -29,3 +29,4 @@ Yes to all. Raise objections as a separate question file in `to-all/` within 2 d
 
 ## Acknowledgements
 - Manali 2026-10-19 ✔
+- Ayushi 2026-11-06 ✔ (Confirmed ADR-0002..0005, contracts/openapi/core-api.yaml, contracts/auth.md, and V1__init_schema.sql)

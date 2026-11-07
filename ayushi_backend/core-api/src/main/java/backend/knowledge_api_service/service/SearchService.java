@@ -3,58 +3,98 @@ package backend.knowledge_api_service.service;
 import backend.knowledge_api_service.dto.request.SearchRequest;
 import backend.knowledge_api_service.dto.response.SearchResponse;
 import backend.knowledge_api_service.dto.response.SearchResultItem;
+import backend.knowledge_api_service.filter.RequestIdFilter;
 import backend.knowledge_api_service.model.Department;
+import backend.knowledge_api_service.model.SearchMode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class SearchService {
 
+    private final AiServiceClient aiServiceClient;
+
     public SearchResponse search(SearchRequest request) {
-        log.info("Executing hybrid search: query='{}', departments={}, topK={}", 
-                request.getQuery(), request.getAuthorizedDepartments(), request.getTopK());
+        RequestIdFilter.CallerInfo caller = RequestIdFilter.getCurrentCaller();
+        List<Department> callerAllowed = caller.allowedDepartments();
 
-        // In Milestone 3, this will execute the native PostgreSQL pgvector cosine similarity + ts_rank query.
-        // For Milestone 1 contract integration, we supply a well-formed structured citation response.
-        List<SearchResultItem> sampleResults = new ArrayList<>();
+        // Intersect requested departments (or legacy authorizedDepartments) with caller's allowedDepartments
+        List<Department> requestedDepts = request.getDepartments() != null && !request.getDepartments().isEmpty()
+                ? request.getDepartments()
+                : request.getAuthorizedDepartments();
 
-        Department dept = (request.getAuthorizedDepartments() != null && !request.getAuthorizedDepartments().isEmpty())
-                ? request.getAuthorizedDepartments().get(0)
-                : Department.GENERAL;
+        List<Department> effectiveDepartments;
+        if (requestedDepts != null && !requestedDepts.isEmpty()) {
+            effectiveDepartments = requestedDepts.stream()
+                    .filter(callerAllowed::contains)
+                    .distinct()
+                    .collect(Collectors.toList());
+        } else {
+            effectiveDepartments = new ArrayList<>(callerAllowed);
+        }
 
-        sampleResults.add(SearchResultItem.builder()
-                .chunkId(UUID.randomUUID())
-                .documentId(UUID.randomUUID())
-                .documentTitle("Enterprise Standard Operating Procedures & Policies.pdf")
-                .fileName("Enterprise_SOP_2026.pdf")
-                .pageNumber(12)
-                .snippet("Eligible employees may take up to 16 consecutive weeks of fully paid parental leave following the birth, adoption, or foster placement of a child. All benefits continue during this period.")
-                .similarityScore(0.925)
-                .department(dept)
-                .build());
+        SearchMode mode = request.getMode() != null ? request.getMode() : SearchMode.HYBRID;
+        int topK = request.getTopK() != null ? request.getTopK() : 10;
 
-        sampleResults.add(SearchResultItem.builder()
-                .chunkId(UUID.randomUUID())
-                .documentId(UUID.randomUUID())
-                .documentTitle("Employee Health, Wellness & Leave Handbook.docx")
-                .fileName("Health_Leave_Handbook.docx")
-                .pageNumber(4)
-                .snippet("To initiate a leave request, notify HR at least 30 days in advance via the internal portal and submit standard medical certification.")
-                .similarityScore(0.864)
-                .department(dept)
-                .build());
+        if (effectiveDepartments.isEmpty()) {
+            return SearchResponse.builder()
+                    .query(request.getQuery())
+                    .mode(mode)
+                    .results(Collections.emptyList())
+                    .totalResults(0)
+                    .latencyMs(0)
+                    .build();
+        }
+
+        log.info("Executing hybrid search via ai-service: query='{}', mode={}, allowedDepartments={}, topK={}",
+                request.getQuery(), mode, effectiveDepartments, topK);
+
+        AiServiceClient.InternalSearchRequest internalRequest = AiServiceClient.InternalSearchRequest.builder()
+                .query(request.getQuery())
+                .allowedDepartments(effectiveDepartments)
+                .mode(mode)
+                .topK(topK)
+                .categories(request.getCategories())
+                .build();
+
+        AiServiceClient.InternalSearchResponse aiResponse = aiServiceClient.search(internalRequest);
+        List<SearchResultItem> results = aiResponse.getResults() != null
+                ? aiResponse.getResults()
+                : Collections.emptyList();
+
+        // Normalize backwards-compatible fields (snippet <-> content, similarityScore <-> score)
+        for (SearchResultItem item : results) {
+            if (item.getContent() == null && item.getSnippet() != null) {
+                item.setContent(item.getSnippet());
+            }
+            if (item.getSnippet() == null && item.getContent() != null) {
+                item.setSnippet(item.getContent());
+            }
+            if (item.getScore() == null && item.getSimilarityScore() != null) {
+                item.setScore(item.getSimilarityScore());
+            }
+            if (item.getSimilarityScore() == null && item.getScore() != null) {
+                item.setSimilarityScore(item.getScore());
+            }
+            if (item.getVersion() == null) {
+                item.setVersion(1);
+            }
+        }
 
         return SearchResponse.builder()
                 .query(request.getQuery())
-                .totalResults(sampleResults.size())
-                .results(sampleResults)
+                .mode(aiResponse.getMode() != null ? aiResponse.getMode() : mode)
+                .results(results)
+                .totalResults(results.size())
+                .latencyMs(aiResponse.getLatencyMs() != null ? aiResponse.getLatencyMs() : 0)
                 .build();
     }
 }
