@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EKM wireframes: login, chat, admin analytics, knowledge gaps</title>
+<style>
+:root{--bg:#f5f7f9;--surface:#fff;--surface-2:#eef2f5;--ink:#13202c;--muted:#5b6b7a;--line:#d9e0e6;--accent:#0f6f8f;--accent-ink:#fff;--accent-soft:#dff0f6;--ok:#1d8a4e;--ok-soft:#e1f4e9;--warn:#a96a00;--warn-soft:#fdf0d5;--bad:#c0392b;--bad-soft:#fbe5e2;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#0f161d;--surface:#17212b;--surface-2:#1f2c38;--ink:#e8eef3;--muted:#9aabba;--line:#2c3b49;--accent:#4fb3d4;--accent-ink:#0b1a22;--accent-soft:#163645;--ok:#5fcf92;--ok-soft:#14301f;--warn:#f0b95a;--warn-soft:#3a2c10;--bad:#ff8b7d;--bad-soft:#3b1b17;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+[hidden]{display:none!important}
+button,select,input,textarea{font:inherit;color:inherit}
+.top{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.top h1{font-size:15px;margin:0 8px 0 0}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tab{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:6px 12px;cursor:pointer;color:var(--muted)}
+.tab[aria-selected=true]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.note{margin:0;padding:8px 16px;font-size:12px;color:var(--muted);background:var(--surface-2);border-bottom:1px solid var(--line)}
+main{max-width:1180px;margin:0 auto;padding:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:7px 12px;cursor:pointer}
+.btn:hover{background:var(--surface-2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.input,select,textarea{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:8px 10px}
+label{display:block;font-weight:600;margin-bottom:4px;font-size:13px}
+.muted{color:var(--muted)}
+.pill{display:inline-block;border-radius:999px;padding:1px 9px;font-size:12px;background:var(--surface-2);color:var(--muted)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}.pill.warn{background:var(--warn-soft);color:var(--warn)}.pill.bad{background:var(--bad-soft);color:var(--bad)}.pill.acc{background:var(--accent-soft);color:var(--accent)}
+.shell{display:grid;grid-template-columns:200px 1fr;min-height:560px;overflow:hidden}
+.side{border-right:1px solid var(--line);padding:12px 8px;background:var(--surface)}
+.side .brand{font-weight:700;padding:4px 10px 12px}
+.side a{display:block;padding:7px 10px;border-radius:6px;color:var(--muted);text-decoration:none;font-size:13px}
+.side a.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.side .sep{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:12px 10px 4px}
+.body{min-width:0;display:flex;flex-direction:column}
+.bar{display:flex;justify-content:flex-end;align-items:center;gap:12px;padding:8px 14px;border-bottom:1px solid var(--line);font-size:13px}
+.bar .who{text-align:right;line-height:1.2}
+.pad{padding:16px;min-width:0}
+.callouts{margin:16px 0 0;padding:0;list-style:none;display:grid;gap:6px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.callouts li{font-size:12.5px;color:var(--muted);padding:8px 10px;border:1px dashed var(--line);border-radius:6px;background:var(--surface)}
+.callouts b{color:var(--ink)}
+/* login */
+.login-wrap{display:grid;place-items:center;padding:48px 16px;min-height:480px}
+.login{width:100%;max-width:360px;padding:24px}
+.login .err{background:var(--bad-soft);color:var(--bad);padding:8px 10px;border-radius:6px;margin-bottom:12px}
+.login .exp{background:var(--warn-soft);color:var(--warn);padding:8px 10px;border-radius:6px;margin-bottom:12px}
+/* chat */
+.chat{display:grid;grid-template-columns:230px 1fr;min-height:560px}
+.convs{border-right:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:6px;background:var(--surface-2)}
+.conv{padding:7px 9px;border-radius:6px;font-size:13px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv.on{background:var(--surface);border:1px solid var(--line)}
+.thread{display:flex;flex-direction:column;min-width:0}
+.msgs{flex:1;padding:16px;display:flex;flex-direction:column;gap:14px;overflow:auto}
+.msg{max-width:720px}
+.msg.user{align-self:flex-end;background:var(--accent);color:var(--accent-ink);padding:9px 13px;border-radius:12px 12px 2px 12px}
+.msg.ai{align-self:flex-start}
+.msg.ai .text{background:var(--surface);border:1px solid var(--line);border-radius:12px 12px 12px 2px;padding:11px 14px}
+.cite{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;border-radius:5px;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:700;border:0;cursor:pointer;margin:0 1px;padding:0 4px;vertical-align:baseline}
+.cite:hover{background:var(--accent);color:var(--accent-ink)}
+.sources{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+.src{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:4px 9px;font-size:12px;cursor:pointer;text-align:left}
+.src:hover{background:var(--surface-2)}
+.actions{margin-top:6px;display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+.actions button{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:2px 8px;cursor:pointer}
+.actions button[aria-pressed=true]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.composer{border-top:1px solid var(--line);padding:10px 14px;display:flex;gap:8px;align-items:flex-end}
+.composer textarea{resize:none;height:44px}
+.caret{display:inline-block;width:7px;height:14px;background:var(--accent);vertical-align:-2px;animation:b 1s steps(2) infinite}
+@keyframes b{50%{opacity:0}}
+.notfound{border:1px solid var(--warn);background:var(--warn-soft);color:var(--ink);border-radius:12px;padding:11px 14px}
+.drawer{position:absolute;inset:0 0 0 auto;width:min(380px,100%);background:var(--surface);border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(0,0,0,.12);display:flex;flex-direction:column;z-index:3}
+.drawer header{display:flex;gap:8px;align-items:flex-start;padding:12px 14px;border-bottom:1px solid var(--line)}
+.drawer blockquote{margin:0;border-left:4px solid var(--accent);background:var(--surface-2);padding:10px 12px;border-radius:0 6px 6px 0;white-space:pre-wrap}
+mark{background:#fff0a8;color:#13202c;border-radius:2px}
+.state{display:flex;gap:6px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);flex-wrap:wrap}
+.state button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:2px 10px;cursor:pointer;color:var(--muted)}
+.state button[aria-pressed=true]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+/* admin */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{padding:12px 14px}.kpi .v{font-size:24px;font-weight:700;line-height:1.1}.kpi .l{font-size:12px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-top:12px}
+.grid2b{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+@media(max-width:860px){.grid2,.grid2b{grid-template-columns:1fr}.shell,.chat{grid-template-columns:1fr}.side,.convs{border-right:0;border-bottom:1px solid var(--line)}}
+.panel{padding:14px}.panel h3{margin:0 0 10px;font-size:13px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}tr:last-child td{border-bottom:0}
+.hbar{display:grid;grid-template-columns:90px 1fr 40px;gap:8px;align-items:center;margin:6px 0;font-size:12px}
+.hbar i{display:block;height:10px;border-radius:5px;background:var(--accent)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:6px}.legend span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;background:var(--c)}
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}.filters>div{min-width:150px}
+.gapdrawer{position:fixed;inset:0 0 0 auto;width:min(400px,100%);background:var(--surface);border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(0,0,0,.18);padding:16px;z-index:10;display:flex;flex-direction:column;gap:12px}
+.rel{position:relative}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>Helios Knowledge Portal · wireframes (M4 / M5)</h1>
+  <div class="tabs" role="tablist" id="tabs"></div>
+</div>
+<p class="note">Low-fidelity, interactive. All data is mock but shaped like <code>contracts/openapi/core-api.yaml</code> and <code>contracts/streaming.md</code>. Numbered notes under each screen explain behavior and the API call behind it.</p>
+<main id="app"></main>
+
+<script>
+const $ = (s, el=document) => el.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function shell(active, inner, user={n:'Hannah Kim', r:'MANAGER', d:'HR'}, admin=false){
+  const nav = [['Chat','chat'],['Documents','docs'],['Search','search']];
+  const adm = [['Analytics','analytics'],['Knowledge gaps','gaps'],['Audit log','audit'],['Users','users']];
+  return `<div class="card shell"><aside class="side"><div class="brand">Helios Knowledge Portal</div>
+    ${nav.map(([l,k])=>`<a href="#" class="${k===active?'on':''}">${l}</a>`).join('')}
+    ${admin?`<div class="sep">Admin</div>${adm.map(([l,k])=>`<a href="#" class="${k===active?'on':''}">${l}</a>`).join('')}`:''}
+    </aside><div class="body"><div class="bar"><div class="who"><b>${user.n}</b><br><span class="muted">${user.r} · ${user.d}</span></div><button class="btn">Dark</button><button class="btn">Sign out</button></div>${inner}</div></div>`;
+}
+
+/* ---------- 1. LOGIN ---------- */
+const loginState = {v:'idle'};
+function loginView(){
+  const v = loginState.v;
+  return `<div class="card login-wrap"><form class="card login" onsubmit="return false">
+    <h2 style="margin:0 0 4px">Helios Knowledge Portal</h2><p class="muted" style="margin:0 0 14px">Sign in to continue.</p>
+    ${v==='expired'?'<div class="exp" role="status">Your session expired. Please sign in again.</div>':''}
+    ${v==='error'?'<div class="err" role="alert">Invalid email or password.</div>':''}
+    <div style="margin-bottom:10px"><label>Email</label><input class="input" value="hannah.hr@helios.example.com"></div>
+    <div style="margin-bottom:14px"><label>Password</label><input class="input" type="password" value="Password123!"></div>
+    <button class="btn primary" style="width:100%">${v==='busy'?'Signing in…':'Sign in'}</button></form></div>
+    <div class="state" style="border:0">States: ${['idle','busy','error','expired'].map(s=>`<button aria-pressed="${s===v}" data-login="${s}">${s}</button>`).join('')}</div>
+    <ol class="callouts">
+      <li><b>1 · Submit</b> → <code>POST /api/v1/auth/login</code>. On 200 keep <code>accessToken</code> in memory and <code>sessionStorage</code> (never localStorage), then go to <code>?next=</code> or Chat.</li>
+      <li><b>2 · Wrong password</b> → 401 shows the inline error. A 401 from login is not a session expiry.</li>
+      <li><b>3 · Expired session</b> → any other 401 redirects here with <code>?expired=1</code> and the banner; the page they were on is kept in <code>?next=</code>.</li>
+      <li><b>4 · Reload</b> → token from <code>sessionStorage</code>, then <code>GET /api/v1/users/me</code> restores name, role, department and <code>permissions</code>.</li>
+    </ol>`;
+}
+
+/* ---------- 2. CHAT ---------- */
+const chatState = {mode:'answered', open:null};
+const CITES = [
+ {n:1,title:'PTO and Leave Policy',v:2,p:3,sec:'Accrual',dept:'HR',score:.91,text:"Full-time employees accrue paid time off at a rate of 1.67 days per month (20 days per year). Accrual begins on the first day of employment and is credited on the last business day of each month."},
+ {n:2,title:'PTO and Leave Policy',v:2,p:4,sec:'Carry-over',dept:'HR',score:.84,text:"Up to 5 unused PTO days may be carried over into the next calendar year. Days above this limit expire on December 31 unless a manager approves an exception in writing."}
+];
+function chatView(){
+  const m = chatState.mode;
+  const convs = ['How many vacation days do I get?','Remote work equipment budget','Expense report deadline','Parental leave steps'];
+  let thread='';
+  const user = t=>`<div class="msg user">${esc(t)}</div>`;
+  const badges = (txt)=>txt.replace(/\[(\d)\]/g,(x,n)=>`<button class="cite" data-cite="${n}" aria-label="Open source ${n}">${n}</button>`);
+  if(m==='answered'||m==='streaming'){
+    const full = "Full-time employees accrue <b>1.67 days of PTO per month</b>, which is 20 days a year [1]. You can carry over up to 5 unused days into the next year; anything above that expires on December 31 unless your manager approves an exception [2].";
+    const partial = "Full-time employees accrue <b>1.67 days of PTO per month</b>, which is 20 days a year [1]. You can carry over up to 5 unused";
+    thread += user('How many vacation days do I get, and can I carry them over?');
+    thread += `<div class="msg ai"><div class="text">${badges(m==='streaming'?partial:full)}${m==='streaming'?' <span class="caret"></span>':''}</div>
+      ${m==='answered'?`<div class="sources">${CITES.map(c=>`<button class="src" data-cite="${c.n}">[${c.n}] ${c.title} · p.${c.p}</button>`).join('')}</div>
+      <div class="actions"><span>Answered in 2.1 s</span><button aria-pressed="false" aria-label="Helpful">👍</button><button aria-pressed="false" aria-label="Not helpful">👎</button><button>Copy</button></div>`
+      :`<div class="actions"><button id="stop">■ Stop</button><span>Sources appear when the answer finishes</span></div>`}</div>`;
+  } else if(m==='notfound'){
+    thread += user('What is the policy on bringing pets to the office?');
+    thread += `<div class="msg ai"><div class="notfound"><b>I couldn't find this in the documents you have access to.</b><div class="muted" style="margin-top:4px">This question was recorded so the knowledge owners can add a document. You can ask the HR or Facilities team directly in the meantime.</div></div><div class="actions"><button>Rephrase</button><button>Search documents</button></div></div>`;
+  } else if(m==='error'){
+    thread += user('Summarize the travel policy');
+    thread += `<div class="msg ai"><div class="notfound" style="border-color:var(--bad);background:var(--bad-soft)" role="alert"><b>The assistant is unavailable right now.</b><div class="muted" style="margin-top:4px">Nothing was lost. Try again in a moment. (trace 9f3a…)</div></div><div class="actions"><button>Retry</button></div></div>`;
+  }
+  const c = CITES.find(x=>x.n===chatState.open);
+  const drawer = c ? `<aside class="drawer" role="dialog" aria-label="Source preview"><header><div style="flex:1"><b>${c.title}</b><div class="muted" style="font-size:12px">v${c.v} · page ${c.p} · ${c.sec} · ${c.dept}</div></div><button class="btn" id="closeDrawer">Close</button></header>
+      <div style="padding:14px;overflow:auto;flex:1"><blockquote>${esc(c.text).replace(/(1\.67 days|5 unused)/,'<mark>$1</mark>')}</blockquote><div class="muted" style="margin-top:10px;font-size:12px">Relevance ${c.score.toFixed(2)}</div></div>
+      <footer style="padding:12px 14px;border-top:1px solid var(--line)"><button class="btn primary">Open at page ${c.p}</button></footer></aside>`:'';
+  const inner = `<div class="chat rel"><div class="convs"><button class="btn primary">+ New chat</button>${convs.map((t,i)=>`<div class="conv ${i===0?'on':''}">${t}</div>`).join('')}</div>
+    <div class="thread"><div class="state">Preview state: ${[['answered','Answered'],['streaming','Streaming'],['notfound','Not found'],['error','Error']].map(([k,l])=>`<button aria-pressed="${k===m}" data-chat="${k}">${l}</button>`).join('')}</div>
+    <div class="msgs">${thread}</div>
+    <div class="composer"><textarea class="input" placeholder="Ask about your company's documents…" maxlength="2000"></textarea><button class="btn primary">Send</button></div></div>${drawer}</div>`;
+  return shell('chat', inner) + `<ol class="callouts">
+    <li><b>1 · Send</b> → <code>POST /api/v1/chat/stream</code> with <code>{message, conversationId?}</code>. Read it with <code>fetch</code> + <code>ReadableStream</code> (no EventSource).</li>
+    <li><b>2 · Events</b> → <code>meta</code> (ids), <code>token</code>* (append text), <code>citations</code>, <code>done</code> or <code>error</code>. Text and badges appear while streaming; the sources row appears after <code>citations</code>.</li>
+    <li><b>3 · Citation badge</b> → <code>[n]</code> in the answer becomes a button. Click opens the preview panel: <code>GET /documents/{id}/chunks/{chunkId}</code> and "Open at page N" via <code>download-url?page=N</code> (same component as Search).</li>
+    <li><b>4 · Not found</b> → <code>answered:false</code> shows the friendly state, no sources, and the question is recorded as a knowledge gap on the server.</li>
+    <li><b>5 · Stop</b> → AbortController cancels the stream; the partial answer stays visible.</li>
+    <li><b>6 · Feedback</b> → 👍/👎 calls <code>POST /chat/messages/{id}/feedback</code> with <code>{rating: UP|DOWN}</code>; used in analytics and RAG evaluation.</li>
+    <li><b>7 · History</b> → left list from <code>GET /conversations</code>; opening one loads <code>GET /conversations/{id}</code>; delete uses <code>DELETE</code>.</li>
+    <li><b>8 · Department isolation</b> → the UI never sends access rights. The server derives allowed departments from the JWT; an optional <code>departments</code> filter can only narrow.</li></ol>`;
+}
+
+/* ---------- 3. ADMIN ANALYTICS ---------- */
+function analyticsView(){
+  const days = Array.from({length:14},(_,i)=>{const q=Math.round(40+22*Math.sin(i/2.2)+i*3+(i%3)*5);return {d:`Oct ${18+i>31?18+i-31:18+i}`,q,u:Math.round(q*(.14+.05*Math.cos(i)))}});
+  const W=560,H=190,P=28,mx=Math.max(...days.map(x=>x.q)),X=i=>P+i*(W-P*2)/(days.length-1),Y=v=>H-P-(v/mx)*(H-P*2);
+  const line=k=>days.map((p,i)=>`${i?'L':'M'}${X(i).toFixed(1)},${Y(p[k]).toFixed(1)}`).join(' ');
+  const chart=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Queries per day, with unanswered queries">
+    ${[0,.5,1].map(f=>`<line x1="${P}" x2="${W-P}" y1="${Y(mx*f)}" y2="${Y(mx*f)}" stroke="var(--line)"/><text x="${P-6}" y="${Y(mx*f)+4}" text-anchor="end" font-size="10" fill="var(--muted)">${Math.round(mx*f)}</text>`).join('')}
+    <path d="${line('q')}" fill="none" stroke="var(--accent)" stroke-width="2.5"/><path d="${line('u')}" fill="none" stroke="var(--bad)" stroke-width="2.5" stroke-dasharray="5 3"/>
+    ${[0,6,13].map(i=>`<text x="${X(i)}" y="${H-8}" text-anchor="middle" font-size="10" fill="var(--muted)">${days[i].d}</text>`).join('')}</svg>
+    <div class="legend"><span style="--c:var(--accent)">Queries</span><span style="--c:var(--bad)">Unanswered</span></div>`;
+  const dept={HR:120,ENGINEERING:87,FINANCE:54,LEGAL:31,GENERAL:46},dm=Math.max(...Object.values(dept));
+  const kpi=(v,l,s='')=>`<div class="card kpi"><div class="v">${v}</div><div class="l">${l}</div>${s?`<div class="muted" style="font-size:11px">${s}</div>`:''}</div>`;
+  const inner=`<div class="pad"><div class="filters"><div><label>From</label><input class="input" value="2026-10-18"></div><div><label>To</label><input class="input" value="2026-11-01"></div><div><label>Department</label><select><option>All</option><option>HR</option></select></div><button class="btn">Apply</button></div>
+   <div class="kpis">${kpi('338','Total queries')}${kpi('86%','Answered rate','target ≥ 80%')}${kpi('2.1 s','Avg latency','p95 4.8 s')}${kpi('27','Active users')}${kpi('41 / 44','Indexed documents','3 failed')}${kpi('7','Open knowledge gaps','View →')}${kpi('91%','Positive feedback','n = 56')}</div>
+   <div class="grid2"><div class="card panel"><h3>Queries over time</h3>${chart}</div>
+   <div class="card panel"><h3>Queries by department</h3>${Object.entries(dept).map(([k,v])=>`<div class="hbar"><span>${k}</span><i style="width:${v/dm*100}%"></i><b>${v}</b></div>`).join('')}</div></div>
+   <div class="grid2b"><div class="card panel"><h3>Top questions</h3><table><thead><tr><th>Question</th><th>Count</th><th>Answered</th></tr></thead><tbody>
+     ${[['how many vacation days do i get',24,'96%'],['expense report deadline',17,'100%'],['remote work equipment budget',12,'58%'],['parental leave steps',11,'91%'],['pet policy office',9,'0%']].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td><span class="pill ${parseInt(r[2])<60?'bad':'ok'}">${r[2]}</span></td></tr>`).join('')}</tbody></table></div>
+   <div class="card panel"><h3>Most cited documents</h3><table><thead><tr><th>Document</th><th>Dept</th><th>Citations</th></tr></thead><tbody>
+     ${[['PTO and Leave Policy','HR',58],['Expense Reimbursement SOP','FINANCE',33],['Engineering Onboarding Guide','ENGINEERING',29],['Information Security Policy','LEGAL',21]].map(r=>`<tr><td>${r[0]}</td><td><span class="pill">${r[1]}</span></td><td>${r[2]}</td></tr>`).join('')}</tbody></table></div></div></div>`;
+  return shell('analytics', inner, {n:'Alice Admin',r:'ADMIN',d:'GENERAL'}, true)+`<ol class="callouts">
+   <li><b>1 · KPI tiles</b> → <code>GET /admin/analytics/summary?from&amp;to</code>. Values map to <code>totalQueries, answeredRate, avgLatencyMs, p95LatencyMs, activeUsers, indexedDocuments/totalDocuments, failedDocuments, openKnowledgeGaps, positiveFeedbackRate</code>. Feedback shows "-" when null.</li>
+   <li><b>2 · Line chart</b> → <code>GET /admin/analytics/queries-over-time</code> (<code>date, queries, unanswered</code>), optional <code>department</code>.</li>
+   <li><b>3 · By department</b> → <code>queriesByDepartment</code> from the summary.</li>
+   <li><b>4 · Top questions / documents</b> → <code>top-queries</code>, <code>top-documents</code> (<code>limit</code> default 10). A low answered rate (red) points to a missing document.</li>
+   <li><b>5 · Open gaps tile</b> links to the Knowledge gaps screen. The whole section is visible only with <code>ANALYTICS_READ</code>; the server returns 403 otherwise.</li>
+   <li><b>6 · States</b> → skeleton tiles while loading, "No data for this range" when empty, retry on error. Dates default to the last 30 days.</li></ol>`;
+}
+
+/* ---------- 4. KNOWLEDGE GAPS ---------- */
+const gaps=[
+ {id:1,q:'What is the policy on bringing pets to the office?',dept:'GENERAL',occ:9,st:'OPEN',first:'Oct 21',last:'Nov 1',notes:''},
+ {id:2,q:'How do I request a standing desk?',dept:'GENERAL',occ:6,st:'IN_PROGRESS',first:'Oct 24',last:'Oct 31',notes:'Facilities will write a short guide.'},
+ {id:3,q:'Per diem rate for international travel',dept:'FINANCE',occ:5,st:'OPEN',first:'Oct 22',last:'Oct 30',notes:''},
+ {id:4,q:'Code review turnaround expectations',dept:'ENGINEERING',occ:4,st:'RESOLVED',first:'Oct 19',last:'Oct 27',notes:'Added to Engineering Onboarding Guide v3.'},
+ {id:5,q:'Can contractors access the VPN?',dept:'LEGAL',occ:2,st:'DISMISSED',first:'Oct 25',last:'Oct 26',notes:'Out of scope.'}];
+const gapState={filter:'',open:null};
+function gapsView(){
+  const rows=gaps.filter(g=>!gapState.filter||g.st===gapState.filter);
+  const cls={OPEN:'bad',IN_PROGRESS:'warn',RESOLVED:'ok',DISMISSED:''};
+  const g=gaps.find(x=>x.id===gapState.open);
+  const inner=`<div class="pad"><div class="filters"><div><label>Status</label><select id="gapfilter"><option value="">All</option>${['OPEN','IN_PROGRESS','RESOLVED','DISMISSED'].map(s=>`<option ${gapState.filter===s?'selected':''}>${s}</option>`).join('')}</select></div><div><label>Department</label><select><option>All</option></select></div></div>
+   <div class="card" style="overflow:auto"><table><thead><tr><th>Question people asked</th><th>Dept</th><th>Times asked</th><th>Status</th><th>First / last seen</th><th></th></tr></thead><tbody>
+   ${rows.map(r=>`<tr><td><b>${esc(r.q)}</b>${r.notes?`<div class="muted" style="font-size:12px">${esc(r.notes)}</div>`:''}</td><td><span class="pill">${r.dept}</span></td><td>${r.occ}</td><td><span class="pill ${cls[r.st]}">${r.st.replace('_',' ')}</span></td><td class="muted">${r.first} / ${r.last}</td><td><button class="btn" data-gap="${r.id}">Manage</button></td></tr>`).join('')||'<tr><td colspan="6" class="muted" style="padding:20px">No gaps with this status.</td></tr>'}</tbody></table></div>
+   <p class="muted" style="font-size:12px">Page 1 of 1 · ${rows.length} gaps</p></div>
+   ${g?`<div class="gapdrawer" role="dialog" aria-label="Manage knowledge gap"><div style="display:flex;gap:8px;align-items:start"><div style="flex:1"><b>${esc(g.q)}</b><div class="muted" style="font-size:12px">Asked ${g.occ} times · ${g.dept}</div></div><button class="btn" id="closeGap">Close</button></div>
+     <div><label>Status</label><select>${['OPEN','IN_PROGRESS','RESOLVED','DISMISSED'].map(s=>`<option ${g.st===s?'selected':''}>${s}</option>`).join('')}</select></div>
+     <div><label>Notes <span class="muted" style="font-weight:400">(max 2000)</span></label><textarea rows="5">${esc(g.notes)}</textarea></div>
+     <div style="display:flex;gap:8px"><button class="btn primary">Save</button><button class="btn">Upload a document for this</button></div></div>`:''}`;
+  return shell('gaps', inner, {n:'Alice Admin',r:'ADMIN',d:'GENERAL'}, true)+`<ol class="callouts">
+   <li><b>1 · List</b> → <code>GET /admin/knowledge-gaps?status&amp;department&amp;page&amp;size</code>. Columns: <code>sampleQuery, department, occurrences, status, firstSeenAt/lastSeenAt, notes</code>. Sorted by occurrences so the most-asked gaps come first.</li>
+   <li><b>2 · Where gaps come from</b> → every chat answer with <code>answered:false</code> or low confidence is grouped by normalized query on the server.</li>
+   <li><b>3 · Manage</b> → the side panel changes <code>status</code> (OPEN → IN_PROGRESS → RESOLVED or DISMISSED) and <code>notes</code> with <code>PATCH</code> on the gap. RESOLVED sets <code>resolvedAt</code> server-side.</li>
+   <li><b>4 · Close the loop</b> → "Upload a document for this" opens Upload with the department prefilled (ADMIN may choose any).</li>
+   <li><b>5 · Access</b> → visible with <code>ANALYTICS_READ</code>. Employees never see this screen; the server returns 403 anyway.</li></ol>`;
+}
+
+/* ---------- router ---------- */
+const VIEWS={login:['1 · Login',loginView],chat:['2 · Chat',chatView],analytics:['3 · Admin analytics',analyticsView],gaps:['4 · Knowledge gaps',gapsView]};
+let cur=(location.hash||'#login').slice(1); if(!VIEWS[cur]) cur='login';
+function render(){
+  $('#tabs').innerHTML=Object.entries(VIEWS).map(([k,[l]])=>`<button class="tab" role="tab" aria-selected="${k===cur}" data-tab="${k}">${l}</button>`).join('');
+  $('#app').innerHTML=VIEWS[cur][1]();
+}
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-tab],[data-login],[data-chat],[data-cite],[data-gap],#closeDrawer,#closeGap'); if(!t) return;
+  if(t.dataset.tab){cur=t.dataset.tab;history.replaceState(null,'','#'+cur)}
+  else if(t.dataset.login) loginState.v=t.dataset.login;
+  else if(t.dataset.chat){chatState.mode=t.dataset.chat;chatState.open=null}
+  else if(t.dataset.cite) chatState.open=+t.dataset.cite;
+  else if(t.dataset.gap) gapState.open=+t.dataset.gap;
+  else if(t.id==='closeDrawer') chatState.open=null;
+  else if(t.id==='closeGap') gapState.open=null;
+  render();
+});
+document.addEventListener('change',e=>{ if(e.target.id==='gapfilter'){gapState.filter=e.target.value;render()} });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){chatState.open=null;gapState.open=null;render()} });
+render();
+</script>
+</body>
+</html>
