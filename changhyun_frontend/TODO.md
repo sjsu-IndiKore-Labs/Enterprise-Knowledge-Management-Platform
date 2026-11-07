@@ -79,4 +79,4 @@ no secrets or tokens in `localStorage`/logs.
 
 ## Blocked / waiting on
 - Ayushi: [`questions/to-ayushi/2026-11-06_from-changhyun_core-api-differs-from-contract.md`](../questions/to-ayushi/2026-11-06_from-changhyun_core-api-differs-from-contract.md) — core-api (PR #6) differs from `core-api.yaml` (upload path, status values, 50 vs 25 MB, departments, paging, client-supplied `authorizedDepartments` in search). Frontend builds against the contract and the Prism mock until answered.
-- Manali: branching target. `develop` does not exist on the remote and PR #6 was merged into `main` (see the acknowledgement in `questions/to-all/2026-10-19_from-manali_confirm-architecture-and-contracts-v1.md`).
+- Manali: branching target. `develop` exists but is still at the first commit (`9642867`) while `main` is 5 commits ahead, and PR #6 was merged into `main`. This PR targets `main` until the team confirms (see the acknowledgement in `questions/to-all/2026-10-19_from-manali_confirm-architecture-and-contracts-v1.md`).
