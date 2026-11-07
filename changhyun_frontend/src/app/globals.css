@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f5f7f9;
+  --surface: #ffffff;
+  --surface-2: #eef2f5;
+  --ink: #13202c;
+  --muted: #5b6b7a;
+  --line: #d9e0e6;
+  --accent: #0f6f8f;
+  --accent-ink: #ffffff;
+  --accent-soft: #dff0f6;
+  --ok: #1d8a4e;
+  --ok-soft: #e1f4e9;
+  --warn: #a96a00;
+  --warn-soft: #fdf0d5;
+  --bad: #c0392b;
+  --bad-soft: #fbe5e2;
+  --mark: #fff0a8;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --bg: #0f161d;
+  --surface: #17212b;
+  --surface-2: #1f2c38;
+  --ink: #e8eef3;
+  --muted: #9aabba;
+  --line: #2c3b49;
+  --accent: #4fb3d4;
+  --accent-ink: #0b1a22;
+  --accent-soft: #163645;
+  --ok: #5fcf92;
+  --ok-soft: #14301f;
+  --warn: #f0b95a;
+  --warn-soft: #3a2c10;
+  --bad: #ff8b7d;
+  --bad-soft: #3b1b17;
+  --mark: #6b5a10;
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+body {
+  @apply font-sans antialiased;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply border-accent bg-accent text-accent-ink hover:opacity-90;
+  }
+  .input {
+    @apply w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted;
+  }
+  .label {
+    @apply mb-1 block text-sm font-medium text-ink;
+  }
+  .field-error {
+    @apply mt-1 text-xs text-bad;
+  }
+  .card {
+    @apply rounded-lg border border-line bg-surface;
+  }
+}
+
+mark {
+  background: var(--mark);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}

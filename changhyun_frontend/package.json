@@ -1,0 +1,50 @@
+{
+  "name": "ekm-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Enterprise Knowledge Management Platform - web portal (Next.js)",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "gen:api": "openapi-typescript ../contracts/openapi/core-api.yaml -o src/lib/api/schema.d.ts",
+    "mock": "node mock-server/server.mjs",
+    "mock:test": "node mock-server/selftest.mjs"
+  },
+  "dependencies": {
+    "next": "^15.5.0",
+    "openapi-fetch": "^0.14.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-dropzone": "^14.3.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@testing-library/jest-dom": "^6.6.0",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.0",
+    "@types/node": "^20.17.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.15.0",
+    "eslint-config-next": "^15.5.0",
+    "jsdom": "^25.0.0",
+    "openapi-typescript": "^7.4.0",
+    "postcss": "^8.4.49",
+    "prettier": "^3.4.0",
+    "prettier-plugin-tailwindcss": "^0.6.9",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
