@@ -58,6 +58,13 @@ All queues use SQS-managed server-side encryption, 20-second long polling, and a
 after three receives. The task-role policies grant only the send/receive permissions required by
 each service.
 
+The RDS configuration provisions PostgreSQL 16 (`db.t4g.micro`) in the two private subnets. The
+DB subnet group spans both availability zones, while the staging instance remains single-AZ to
+keep the requested instance size and staging cost profile. RDS manages the master password in
+Secrets Manager. The RDS security group allows port 5432 only from the shared ECS task security
+group. The existing core-api Flyway V1 migration runs `CREATE EXTENSION IF NOT EXISTS vector`
+when it initializes the database.
+
 Run from this directory:
 
 ```bash

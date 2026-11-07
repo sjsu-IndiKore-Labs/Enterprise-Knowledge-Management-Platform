@@ -11,3 +11,7 @@ s3_bucket_key_enabled       = true
 s3_bucket_versioning_enabled = true
 s3_block_public_access      = true
 s3_allowed_origins           = ["http://localhost:3000"]
+
+rds_database_name   = "ekm"
+rds_master_username = "ekm"
+rds_kms_key_arn     = "alias/aws/rds"

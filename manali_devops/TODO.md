@@ -36,7 +36,7 @@ Each service's `Dockerfile` + health endpoint (see `contracts/ports-and-services
 - [ ] `docker-compose.yml` `apps` profile works with the new backend images after Ayushi resolves the core-api port/database configuration
 
 ## Milestone 3 — Database in AWS (Oct 26 – Nov 8)
-- [ ] RDS PostgreSQL 16 (db.t4g.micro, free-tier) with `CREATE EXTENSION vector` (RDS supports pgvector), private subnet, SG only from ECS tasks
+- [ ] RDS PostgreSQL 16 (db.t4g.micro, free-tier) with `CREATE EXTENSION vector` (RDS supports pgvector), private subnet, SG only from ECS tasks — RDS, private networking, ECS-only SG, and managed master secret applied on 2026-11-07; pgvector awaits core-api Flyway initialization
 - [ ] Secrets Manager entries + task definitions reading them; budget alarm on OpenAI usage (manual check) and AWS Budgets ($ threshold)
 
 ## Milestone 4 — CI/CD to ECS (Nov 9 – Nov 20)

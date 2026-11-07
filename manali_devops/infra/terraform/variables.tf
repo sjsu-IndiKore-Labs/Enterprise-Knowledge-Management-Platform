@@ -43,3 +43,21 @@ variable "s3_allowed_origins" {
   type        = list(string)
   default     = ["http://localhost:3000"]
 }
+
+variable "rds_database_name" {
+  description = "Initial PostgreSQL database name."
+  type        = string
+  default     = "ekm"
+}
+
+variable "rds_master_username" {
+  description = "RDS master username. The password is managed by RDS in Secrets Manager."
+  type        = string
+  default     = "ekm"
+}
+
+variable "rds_kms_key_arn" {
+  description = "KMS key ARN or alias used to encrypt the RDS storage."
+  type        = string
+  default     = "alias/aws/rds"
+}

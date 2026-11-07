@@ -32,3 +32,28 @@ output "ecr_repository_urls" {
   description = "Staging ECR repository URLs by service."
   value       = { for service, repository in aws_ecr_repository.service : service => repository.repository_url }
 }
+
+output "ecs_tasks_security_group_id" {
+  description = "Security group ID to attach to ECS tasks."
+  value       = aws_security_group.ecs_tasks.id
+}
+
+output "rds_security_group_id" {
+  description = "RDS security group ID; ingress is restricted to ECS tasks."
+  value       = aws_security_group.rds.id
+}
+
+output "rds_endpoint" {
+  description = "Private RDS endpoint hostname."
+  value       = aws_db_instance.postgres.address
+}
+
+output "rds_port" {
+  description = "RDS PostgreSQL port."
+  value       = aws_db_instance.postgres.port
+}
+
+output "rds_master_user_secret_arn" {
+  description = "Secrets Manager ARN automatically created by RDS for the master credentials."
+  value       = aws_db_instance.postgres.master_user_secret[0].secret_arn
+}
