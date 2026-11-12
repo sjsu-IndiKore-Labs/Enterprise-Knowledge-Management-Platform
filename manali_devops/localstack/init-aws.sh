@@ -7,25 +7,35 @@ REGION="${AWS_DEFAULT_REGION:-us-west-2}"
 BUCKET="${S3_DOCUMENTS_BUCKET:-ekm-documents-local}"
 
 echo "[init-aws] creating bucket ${BUCKET}"
-awslocal s3api create-bucket --bucket "${BUCKET}" --region "${REGION}" \
-  --create-bucket-configuration LocationConstraint="${REGION}" || true
+if ! awslocal s3api head-bucket --bucket "${BUCKET}" >/dev/null 2>&1; then
+  awslocal s3api create-bucket --bucket "${BUCKET}" --region "${REGION}" \
+    --create-bucket-configuration LocationConstraint="${REGION}"
+fi
 awslocal s3api put-bucket-cors --bucket "${BUCKET}" --cors-configuration '{
   "CORSRules": [{"AllowedOrigins": ["http://localhost:3000"], "AllowedMethods": ["GET", "PUT"], "AllowedHeaders": ["*"], "MaxAgeSeconds": 3000}]
 }'
 
 create_queue_with_dlq() {
   local name="$1" visibility="$2"
-  awslocal sqs create-queue --queue-name "${name}-dlq" --region "${REGION}" >/dev/null
+  local dlq_name="${name}-dlq"
+  awslocal sqs create-queue --queue-name "${dlq_name}" --region "${REGION}" >/dev/null
   local dlq_arn
+  local dlq_url
+  local queue_url
+  dlq_url=$(awslocal sqs get-queue-url --queue-name "${dlq_name}" --region "${REGION}" \
+    --query 'QueueUrl' --output text)
   dlq_arn=$(awslocal sqs get-queue-attributes --region "${REGION}" \
-    --queue-url "http://localhost:4566/000000000000/${name}-dlq" \
+    --queue-url "${dlq_url}" \
     --attribute-names QueueArn --query 'Attributes.QueueArn' --output text)
-  awslocal sqs create-queue --queue-name "${name}" --region "${REGION}" --attributes "{
+
+  queue_url=$(awslocal sqs create-queue --queue-name "${name}" --region "${REGION}" \
+    --query 'QueueUrl' --output text)
+  awslocal sqs set-queue-attributes --region "${REGION}" --queue-url "${queue_url}" --attributes "{
     \"VisibilityTimeout\": \"${visibility}\",
     \"ReceiveMessageWaitTimeSeconds\": \"20\",
     \"RedrivePolicy\": \"{\\\"deadLetterTargetArn\\\":\\\"${dlq_arn}\\\",\\\"maxReceiveCount\\\":\\\"3\\\"}\"
-  }" >/dev/null
-  echo "[init-aws] queue ${name} (+dlq) ready"
+  }"
+  echo "[init-aws] queue ${name} (+dlq) ready (${visibility}s visibility)"
 }
 
 create_queue_with_dlq "${SQS_DOCUMENT_INGEST_QUEUE:-ekm-document-ingest}" 300
