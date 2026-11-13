@@ -57,3 +57,13 @@ output "rds_master_user_secret_arn" {
   description = "Secrets Manager ARN automatically created by RDS for the master credentials."
   value       = aws_db_instance.postgres.master_user_secret[0].secret_arn
 }
+
+output "application_secret_arns" {
+  description = "Secrets Manager ARNs for application secrets; values are intentionally not managed by Terraform."
+  value       = { for name, secret in aws_secretsmanager_secret.application : name => secret.arn }
+}
+
+output "monthly_aws_budget_name" {
+  description = "Monthly AWS cost budget name."
+  value       = aws_budgets_budget.monthly_aws.name
+}

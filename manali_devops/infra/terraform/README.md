@@ -65,6 +65,30 @@ Secrets Manager. The RDS security group allows port 5432 only from the shared EC
 group. The existing core-api Flyway V1 migration runs `CREATE EXTENSION IF NOT EXISTS vector`
 when it initializes the database.
 
+Milestone 3 application secret containers are created as:
+
+- `ekm/staging/jwt-secret`
+- `ekm/staging/openai-api-key`
+- `ekm/staging/internal-service-token`
+
+Terraform creates the secret metadata and task-role read permissions, but never stores secret
+values. Populate values through an approved secret-management workflow, for example:
+
+```bash
+aws secretsmanager put-secret-value \
+  --secret-id ekm/staging/jwt-secret \
+  --secret-string '<value supplied securely>' \
+  --region us-west-2
+```
+
+The RDS-managed master credential is exposed through `rds_master_user_secret_arn`. ECS task
+definitions will reference these ARNs when the Milestone 4 ECS configuration is added.
+
+The monthly AWS budget is configured in `us-east-1` because AWS Budgets is a global billing
+service. It defaults to USD 50 with 80% actual and 100% forecasted email alerts when
+`budget_notification_email` is populated in local `staging.tfvars`. AWS Budgets does not track
+OpenAI billing; OpenAI usage remains a manual/provider-side check.
+
 Run from this directory:
 
 ```bash

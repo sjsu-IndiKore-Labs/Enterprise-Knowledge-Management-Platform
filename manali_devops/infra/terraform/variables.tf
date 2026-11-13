@@ -61,3 +61,15 @@ variable "rds_kms_key_arn" {
   type        = string
   default     = "alias/aws/rds"
 }
+
+variable "monthly_aws_budget_usd" {
+  description = "Monthly AWS cost budget in USD."
+  type        = number
+  default     = 50
+}
+
+variable "budget_notification_email" {
+  description = "Optional email for 80% actual and 100% forecasted budget alerts."
+  type        = string
+  default     = ""
+}
