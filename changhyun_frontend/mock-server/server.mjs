@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Stateful mock of core-api for developing and checking the web portal without the real backend.
 // Zero dependencies (Node >= 18). Follows contracts/openapi/core-api.yaml (documents, versions,
-// download-url, chunks, search, auth) and contracts/auth.md. Not a replacement for the real service.
+// download-url, chunks, search, auth, chat, conversations, feedback), contracts/auth.md and
+// contracts/streaming.md. Not a replacement for the real service.
 //
 //   node mock-server/server.mjs                 # http://localhost:4010 (same port as the Prism mock)
 //   PORT=8080 node mock-server/server.mjs
@@ -12,6 +13,11 @@
 //   - 404 for documents outside the caller's departments, 401 without or after expiring a token
 //   - 413 over 25 MB, 415 for other file types, 400 for missing fields, 502 when the query contains "trigger502"
 //   - search over the real sample corpus (resources/corpus) when present, with HYBRID / SEMANTIC / KEYWORD modes
+//   - chat: POST /chat/stream sends the SSE events of contracts/streaming.md (meta, keep-alive comment, token*, citations,
+//     done | error). The "answer" is built from the best-matching chunks with [n] markers, so it needs no LLM.
+//     Not found -> the exact "couldn't find" sentence with answered:false. "triggererror" in the message ends the stream
+//     with an `error` event; "trigger502" returns 502 before streaming. Token pace: MOCK_TOKEN_MS (default 25).
+//   - conversations are per user (404 for someone else's), feedback is stored on the assistant message
 //
 // Dev controls:  POST /__mock/expire-tokens   (next call returns 401)    POST /__mock/reset   (back to seed data)
 
@@ -118,7 +124,7 @@ function chunkMarkdown(md, documentId, version, title) {
 }
 
 // ---------- seed data ----------
-let docs, chunksByDoc, tokens, tokenEpoch;
+let docs, chunksByDoc, tokens, tokenEpoch, conversations;
 
 function fakeVersion(documentId, version, file, size, status, uploadedBy, extra = {}) {
   return {
@@ -133,7 +139,7 @@ const contentTypeFor = (f) =>
   /\.docx$/i.test(f) ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'application/pdf';
 
 function seed() {
-  docs = []; chunksByDoc = new Map(); tokens = new Map(); tokenEpoch = 1;
+  docs = []; chunksByDoc = new Map(); tokens = new Map(); tokenEpoch = 1; conversations = new Map();
   const admin = USERS[0].id;
   const manifestPath = path.join(CORPUS_DIR, 'manifest.csv');
   if (fs.existsSync(manifestPath)) {
@@ -374,6 +380,48 @@ function doSearch(u, body) {
   return out.slice(0, Math.min(Math.max(Number(body.topK) || 10, 1), 50));
 }
 
+// ---------- chat ----------
+const NOT_FOUND_ANSWER = "I couldn't find this in the documents you have access to.";
+const MIN_SCORE = 0.3; // plays the role of RAG_MIN_SIMILARITY
+const TOKEN_MS = Number(process.env.MOCK_TOKEN_MS ?? 25);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const oneLine = (s) => s.replace(/\s+/g, ' ').trim();
+const snippetOf = (s) => { const t = oneLine(s); return t.length > 300 ? `${t.slice(0, 297)}…` : t; };
+/** The sentence of a chunk that contains the most query terms (markdown and table marks removed). */
+function bestSentence(content, terms) {
+  const plain = content.replace(/^[#>*\-\s|]+/gm, '').replace(/[|*_`]/g, ' ');
+  const sentences = oneLine(plain).split(/(?<=[.!?])\s+/).filter((s) => s.length > 15);
+  if (!sentences.length) return snippetOf(content).slice(0, 240);
+  const stems = terms.map(stem);
+  const score = (s) => { const w = new Set(tokenize(s).map(stem)); return stems.filter((t) => w.has(t)).length; };
+  const best = sentences.reduce((a, b) => (score(b) > score(a) ? b : a));
+  return best.length > 260 ? `${best.slice(0, 257)}…` : best;
+}
+function composeAnswer(user, body) {
+  const hits = doSearch(user, { query: body.message, mode: 'HYBRID', topK: 3, departments: body.departments })
+    .filter((h) => h.score >= MIN_SCORE);
+  if (!hits.length) return { answer: NOT_FOUND_ANSWER, answered: false, confidence: 0.1, citations: [] };
+  const terms = tokenize(body.message);
+  const citations = hits.map((h, i) => ({
+    citationNumber: i + 1, documentId: h.documentId, documentTitle: h.documentTitle, department: h.department, version: h.version,
+    pageNumber: h.pageNumber, sectionTitle: h.sectionTitle, chunkId: h.chunkId, snippet: snippetOf(h.content), score: h.score,
+  }));
+  const [first, ...rest] = hits.map((h, i) => ({ text: bestSentence(h.content, terms), n: i + 1, title: h.documentTitle }));
+  let answer = `${first.text} [${first.n}]`;
+  if (rest.length) answer += `\n\n**Related details**\n\n${rest.map((r) => `- **${r.title}:** ${r.text} [${r.n}]`).join('\n')}`;
+  return { answer, answered: true, confidence: hits[0].score, citations };
+}
+/** Words with their trailing whitespace; "[2]" markers are split into "[", "2", "]" like a real model may do. */
+function tokensOf(text) {
+  return text.split(/(?<=\s)/).flatMap((w) => {
+    const m = /^\[(\d+)\](\s*)$/.exec(w);
+    return m ? ['[', m[1], `]${m[2]}`] : [w];
+  });
+}
+const publicConversation = (c) => ({ id: c.id, title: c.title, createdAt: c.createdAt, updatedAt: c.updatedAt });
+const ownConversation = (u, id) => { const c = conversations.get(id); return c && c.userId === u.id ? c : null; };
+
 // A tiny valid PDF so "Open at page N" has something to show.
 function samplePdf() {
   const objs = [
@@ -500,6 +548,76 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { query: b.query, mode: b.mode || 'HYBRID', results, latencyMs: Date.now() - started + 40 });
     }
 
+    if ((p === '/api/v1/chat' || p === '/api/v1/chat/stream') && req.method === 'POST') {
+      const b = await readJson(req);
+      const message = typeof b?.message === 'string' ? b.message.trim() : '';
+      if (!message) return fail(res, 400, 'VALIDATION_ERROR', 'message is required.', { message: 'required' });
+      if (message.length > 2000) return fail(res, 400, 'VALIDATION_ERROR', 'message is too long.', { message: 'max 2000 characters' });
+      if (/trigger502/i.test(message)) return fail(res, 502, 'UPSTREAM_UNAVAILABLE', 'The assistant is unavailable.');
+      let conv;
+      if (b.conversationId) {
+        conv = ownConversation(user, b.conversationId);
+        if (!conv) return fail(res, 404, 'CONVERSATION_NOT_FOUND', 'Conversation not found.');
+      } else {
+        conv = { id: crypto.randomUUID(), userId: user.id, title: oneLine(message).slice(0, 80), createdAt: nowIso(), updatedAt: nowIso(), messages: [] };
+        conversations.set(conv.id, conv);
+      }
+      const started = Date.now();
+      const result = composeAnswer(user, { ...b, message });
+      const ids = { queryId: crypto.randomUUID(), conversationId: conv.id, messageId: crypto.randomUUID() };
+      conv.messages.push({ id: crypto.randomUUID(), role: 'USER', content: message, createdAt: nowIso() });
+      const persist = () => {
+        conv.messages.push({ id: ids.messageId, role: 'ASSISTANT', content: result.answer, citations: result.citations, answered: result.answered, feedback: null, createdAt: nowIso() });
+        conv.updatedAt = nowIso();
+      };
+      if (p === '/api/v1/chat') {
+        persist();
+        return send(res, 200, { ...ids, answer: result.answer, answered: result.answered, confidence: result.confidence, citations: result.citations, latencyMs: Date.now() - started + 40 });
+      }
+
+      res.writeHead(200, { ...CORS, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+      let closed = false;
+      res.on('close', () => { closed = true; });
+      const emit = (event, data) => { if (!closed) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
+      emit('meta', ids);
+      if (!closed) res.write(': keep-alive\n\n');
+      const pieces = tokensOf(result.answer);
+      for (let i = 0; i < pieces.length && !closed; i++) {
+        if (/triggererror/i.test(message) && i === 3) {
+          emit('error', { code: 'UPSTREAM_UNAVAILABLE', message: 'The assistant stopped unexpectedly.', traceId: crypto.randomBytes(8).toString('hex') });
+          return res.end();
+        }
+        emit('token', { text: pieces[i] });
+        if (TOKEN_MS > 0) await sleep(TOKEN_MS);
+      }
+      if (closed) return; // the browser pressed Stop: nothing is saved
+      emit('citations', { citations: result.citations });
+      persist();
+      emit('done', { answered: result.answered, confidence: result.confidence, latencyMs: Date.now() - started });
+      return res.end();
+    }
+
+    if (p === '/api/v1/conversations' && req.method === 'GET') {
+      const page = Math.max(0, Number(q.get('page') || 0)), size = Math.min(100, Math.max(1, Number(q.get('size') || 20)));
+      const mine = [...conversations.values()].filter((c) => c.userId === user.id).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+      return send(res, 200, { page, size, totalItems: mine.length, totalPages: Math.ceil(mine.length / size), items: mine.slice(page * size, page * size + size).map(publicConversation) });
+    }
+    if ((m = /^\/api\/v1\/conversations\/([^/]+)$/.exec(p)) && ['GET', 'DELETE'].includes(req.method)) {
+      const c = ownConversation(user, m[1]);
+      if (!c) return fail(res, 404, 'CONVERSATION_NOT_FOUND', 'Conversation not found.');
+      if (req.method === 'DELETE') { conversations.delete(c.id); return send(res, 204); }
+      return send(res, 200, { ...publicConversation(c), messages: c.messages });
+    }
+    if ((m = /^\/api\/v1\/chat\/messages\/([^/]+)\/feedback$/.exec(p)) && req.method === 'POST') {
+      const b = await readJson(req);
+      if (!b || !['UP', 'DOWN'].includes(b.rating)) return fail(res, 400, 'VALIDATION_ERROR', 'rating must be UP or DOWN.', { rating: 'invalid' });
+      if (typeof b.comment === 'string' && b.comment.length > 1000) return fail(res, 400, 'VALIDATION_ERROR', 'comment is too long.', { comment: 'max 1000 characters' });
+      const msg = [...conversations.values()].filter((c) => c.userId === user.id).flatMap((c) => c.messages).find((x) => x.id === m[1] && x.role === 'ASSISTANT');
+      if (!msg) return fail(res, 404, 'MESSAGE_NOT_FOUND', 'Message not found.');
+      msg.feedback = b.rating;
+      return send(res, 204);
+    }
+
     return fail(res, 404, 'NOT_FOUND', `No mock route for ${req.method} ${p}`);
   } catch (e) {
     if (e.status === 413) return fail(res, 413, 'PAYLOAD_TOO_LARGE', `File exceeds the ${MAX_BYTES / 1024 / 1024} MB limit.`);
@@ -515,7 +633,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.log(`Log in with any seed user, password ${PASSWORD}:`);
     for (const u of USERS.filter((x) => x.active)) console.log(`  ${u.role.padEnd(8)} ${u.department.padEnd(12)} ${u.email}`);
     console.log('Dev controls: POST /__mock/expire-tokens (next call -> 401), POST /__mock/reset');
-    console.log('Tips: a file name containing "fail" ends in FAILED; a search containing "trigger502" returns 502.');
+    console.log('Tips: a file name containing "fail" ends in FAILED; a search or chat message containing "trigger502" returns 502;');
+    console.log('      a chat message containing "triggererror" breaks the stream after a few tokens; MOCK_TOKEN_MS=80 slows the stream down.');
   });
 }
 export { server, seed };
