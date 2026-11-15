@@ -53,10 +53,10 @@ describe('role rules', () => {
     expect(uploadableDepartments({ role: 'EMPLOYEE', department: 'HR' }, [...all])).toEqual([]);
     expect(uploadableDepartments(null, [...all])).toEqual([]);
   });
-  it('only MANAGER and ADMIN can upload', () => {
-    expect(canUpload({ role: 'EMPLOYEE' })).toBe(false);
-    expect(canUpload({ role: 'MANAGER' })).toBe(true);
-    expect(canUpload({ role: 'ADMIN' })).toBe(true);
+  it('upload follows the DOCUMENT_WRITE permission', () => {
+    expect(canUpload({ permissions: ['DOCUMENT_READ'] })).toBe(false);
+    expect(canUpload({ permissions: ['DOCUMENT_READ', 'DOCUMENT_WRITE'] })).toBe(true);
+    expect(canUpload(null)).toBe(false);
   });
 });
 

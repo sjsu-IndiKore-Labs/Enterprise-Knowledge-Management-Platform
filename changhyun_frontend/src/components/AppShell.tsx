@@ -7,12 +7,15 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { config } from '@/lib/config';
 import { titleCase } from '@/lib/format';
-import { canUpload } from '@/lib/validation';
+import type { Permission } from '@/lib/api/types';
+import { hasPermission } from '@/lib/permissions';
 
-const NAV = [
-  { href: '/documents', label: 'Documents', match: (p: string) => p === '/documents' || /^\/documents\/(?!upload)/.test(p) },
-  { href: '/documents/upload', label: 'Upload', match: (p: string) => p === '/documents/upload', needsUpload: true },
-  { href: '/search', label: 'Search', match: (p: string) => p.startsWith('/search') },
+// `needs` hides an entry for users without that permission (UI hint only: the server enforces access).
+const NAV: { href: string; label: string; match: (p: string) => boolean; needs?: Permission }[] = [
+  { href: '/chat', label: 'Assistant', match: (p) => p.startsWith('/chat'), needs: 'DOCUMENT_READ' },
+  { href: '/documents', label: 'Documents', match: (p) => p === '/documents' || /^\/documents\/(?!upload)/.test(p), needs: 'DOCUMENT_READ' },
+  { href: '/documents/upload', label: 'Upload', match: (p) => p === '/documents/upload', needs: 'DOCUMENT_WRITE' },
+  { href: '/search', label: 'Search', match: (p) => p.startsWith('/search'), needs: 'DOCUMENT_READ' },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -32,7 +35,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const items = NAV.filter((n) => !n.needsUpload || canUpload(user));
+  const items = NAV.filter((n) => !n.needs || hasPermission(user, n.needs));
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
