@@ -1,10 +1,68 @@
-# DevOps Handoff — Milestones 1 and 2
+# DevOps Handoff — Milestones 1–6
 
 Owner: Manali (DevOps & Cloud)
 
 This document describes the infrastructure Manali has provided for Ayushi, Vedanti, and
-Changhyun to use during their Milestones 1–2. It contains no AWS credentials or application
+Changhyun across the project milestones. It contains no AWS credentials or application
 secrets.
+
+## Current milestone status — 2026-11-18
+
+### Milestone 1 — Foundation: mostly completed
+
+- Completed: repository structure, contracts v1, sample data, branch protection, Docker base templates, local validation, and CI contract/backend build checks.
+- Remaining: architecture acknowledgement from Ayushi, Changhyun, and Vedanti; Windows/WSL2 validation; and full application startup validation.
+
+### Milestone 2 — S3, SQS, and Compose: infrastructure completed; application integration pending
+
+- Completed: LocalStack S3/SQS/DLQ initialization, Terraform state/VPC/ECR foundation, staging S3 and SQS resources, encryption, CORS, IAM task policies, and DLQ redrive settings.
+- Pending: the Compose `apps` profile must be validated with the backend images after core-api runtime settings are aligned.
+
+### Milestone 3 — AWS database, secrets, and budgets: infrastructure foundation completed; verification and runtime wiring pending
+
+- Completed: private RDS PostgreSQL 16 foundation, two-AZ DB subnet group, ECS-only RDS security group, RDS-managed master secret, application secret containers, task-role read permissions, and AWS Budget Terraform configuration.
+- In progress: pgvector verification is prepared in [`manali_devops/scripts/verify-pgvector.sh`](../../manali_devops/scripts/verify-pgvector.sh) and is waiting for core-api/Flyway V1 to initialize the authoritative schema.
+- Not started: populate application secret values, complete ECS secret injection validation, and perform the manual OpenAI usage/budget check.
+
+### Milestone 4 — ECS and CI/CD: foundation implemented; deployment inputs and delivery automation pending
+
+- In progress: ECS/Fargate cluster, four task-definition/service foundations, ALB routing, Cloud Map names, ECR repositories, CloudWatch log groups, and secret-injection structure are implemented in Terraform.
+- Pending: service images and runtime inputs from the service owners, GitHub Actions deployment to ECR/ECS, stable-service smoke tests, and GitHub OIDC.
+
+### Milestone 5 — Observability: not started
+
+- Remaining: CloudWatch metrics and alarms, SNS notifications, dashboard, and the k6 chat load test.
+
+### Milestone 6 — Integration and demo: not started
+
+- Remaining: full staging deployment, corpus ingestion, golden evaluation, end-to-end demo checklist, final documentation/slides, rehearsal, backup video, and AWS teardown plan.
+
+## Open dependency tasks and question routing
+
+Dependencies are recorded in the questions mailbox so the owner can answer them in place. Do not duplicate these as new questions unless the scope changes.
+
+### Ayushi — `questions/to-ayushi/`
+
+- Align core-api with the DevOps runtime contract: port `8080`, PostgreSQL host/database settings, non-root runtime images, and `/actuator/health`.
+- Confirm the authoritative Flyway migration and apply it so the pgvector verifier can confirm V1, `document_chunks.embedding` as `vector(1536)`, and the HNSW cosine index.
+- Track in [`2026-11-06_from-manali_backend-runtime-integration.md`](../../questions/to-ayushi/2026-11-06_from-manali_backend-runtime-integration.md).
+
+### Changhyun — `questions/to-changhyun/`
+
+- Provide the web Dockerfile using the Node 20/Next standalone template.
+- Confirm the startup command, port `3000`, `/api/health`, `NEXT_PUBLIC_API_BASE_URL` handling, and any additional runtime variables required by ECS.
+- Track in [`2026-11-13_from-manali_ecs-runtime-inputs.md`](../../questions/to-changhyun/2026-11-13_from-manali_ecs-runtime-inputs.md).
+
+### Vedanti — `questions/to-vedanti/`
+
+- Provide the AI-service Dockerfile using the Python 3.11 template.
+- Confirm the startup command, port `8000`, `/health`, `AI_PROVIDER=openai` for staging, and any additional runtime variables required by ECS.
+- Track in [`2026-11-13_from-manali_ecs-runtime-inputs.md`](../../questions/to-vedanti/2026-11-13_from-manali_ecs-runtime-inputs.md).
+
+### All members — `questions/to-all/`
+
+- Acknowledge the architecture and contracts v1 decision before relying on the shared interfaces.
+- Track in [`2026-10-19_from-manali_confirm-architecture-and-contracts-v1.md`](../../questions/to-all/2026-10-19_from-manali_confirm-architecture-and-contracts-v1.md).
 
 ## What Manali has completed
 

@@ -36,7 +36,7 @@ Each service's `Dockerfile` + health endpoint (see `contracts/ports-and-services
 - [ ] `docker-compose.yml` `apps` profile works with the new backend images after Ayushi resolves the core-api port/database configuration
 
 ## Milestone 3 — Database in AWS (Oct 26 – Nov 8)
-- [ ] RDS PostgreSQL 16 (db.t4g.micro, free-tier) with `CREATE EXTENSION vector` (RDS supports pgvector), private subnet, SG only from ECS tasks — RDS, private networking, ECS-only SG, and managed master secret applied on 2026-11-07; pgvector awaits core-api Flyway initialization
+- [ ] RDS PostgreSQL 16 (db.t4g.micro, free-tier) with `CREATE EXTENSION vector` (RDS supports pgvector), private subnet, SG only from ECS tasks — RDS, private networking, ECS-only SG, and managed master secret applied on 2026-11-07; read-only verification is available at `scripts/verify-pgvector.sh`, but pgvector awaits core-api Flyway initialization
 - [ ] Secrets Manager entries + task definitions reading them; budget alarm on OpenAI usage (manual check) and AWS Budgets ($ threshold) — secret containers, task-role read policies, and AWS budget Terraform are implemented; secret values and ECS task-definition wiring remain part of deployment configuration
 
 ## Milestone 4 — CI/CD to ECS (Nov 9 – Nov 20)
@@ -64,3 +64,4 @@ Each service's `Dockerfile` + health endpoint (see `contracts/ports-and-services
 
 ## Blocked / waiting on
 - [ ] Ayushi: align core-api with the DevOps runtime contract (port 8080, Docker database hostname/config, non-root + healthcheck Docker runtime, and one authoritative Flyway migration). See [`questions/to-ayushi/2026-11-06_from-manali_backend-runtime-integration.md`](../questions/to-ayushi/2026-11-06_from-manali_backend-runtime-integration.md).
+- [ ] Run `scripts/verify-pgvector.sh` against staging after Ayushi’s authoritative Flyway migration is applied; the current backend migration copy does not create `document_chunks`.
