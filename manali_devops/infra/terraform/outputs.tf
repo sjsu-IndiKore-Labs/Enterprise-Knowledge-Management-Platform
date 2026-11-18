@@ -67,3 +67,13 @@ output "monthly_aws_budget_name" {
   description = "Monthly AWS cost budget name."
   value       = aws_budgets_budget.monthly_aws.name
 }
+
+output "ecs_cluster_name" {
+  description = "ECS staging cluster name."
+  value       = aws_ecs_cluster.main.name
+}
+
+output "application_url" {
+  description = "HTTP URL for the public staging ALB."
+  value       = "http://${aws_lb.app.dns_name}"
+}

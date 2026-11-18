@@ -13,6 +13,34 @@ resource "aws_iam_role" "audit_service_task" {
   assume_role_policy = data.aws_iam_policy_document.ecs_task_assume_role.json
 }
 
+resource "aws_iam_role" "ecs_execution" {
+  name               = "ekm-${var.environment}-ecs-execution"
+  assume_role_policy = data.aws_iam_policy_document.ecs_task_assume_role.json
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_execution_managed" {
+  role       = aws_iam_role.ecs_execution.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+data "aws_iam_policy_document" "ecs_execution_secrets" {
+  statement {
+    sid     = "ReadTaskSecrets"
+    effect  = "Allow"
+    actions = ["secretsmanager:GetSecretValue"]
+    resources = concat(
+      [for secret in aws_secretsmanager_secret.application : secret.arn],
+      [aws_db_instance.postgres.master_user_secret[0].secret_arn]
+    )
+  }
+}
+
+resource "aws_iam_role_policy" "ecs_execution_secrets" {
+  name   = "ekm-${var.environment}-ecs-execution-secrets"
+  role   = aws_iam_role.ecs_execution.id
+  policy = data.aws_iam_policy_document.ecs_execution_secrets.json
+}
+
 data "aws_iam_policy_document" "core_api_s3" {
   statement {
     sid       = "ListDocumentBucket"

@@ -73,3 +73,15 @@ variable "budget_notification_email" {
   type        = string
   default     = ""
 }
+
+variable "ecs_image_tag" {
+  description = "Immutable ECR image tag used by ECS task definitions."
+  type        = string
+  default     = "bootstrap"
+}
+
+variable "ecs_desired_count" {
+  description = "Desired task count for each ECS service in the staging environment."
+  type        = number
+  default     = 1
+}

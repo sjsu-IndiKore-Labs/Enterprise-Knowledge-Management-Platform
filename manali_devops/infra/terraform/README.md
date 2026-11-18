@@ -8,8 +8,8 @@ ecr.tf         # ekm-core-api, ekm-audit-service, ekm-ai-service, ekm-web
 s3.tf          # ekm-documents-<env>-<account>, SSE-KMS, versioning, block public access
 sqs.tf         # 3 queues + DLQs (names in contracts/ports-and-services.md)
 rds.tf         # Postgres 16, pgvector, private
-ecs.tf         # cluster, task defs, services, Service Connect
-alb.tf         # /api/* -> core-api, /* -> web
+ecs.tf         # Fargate cluster, task defs, services, Cloud Map, logs
+alb.tf         # public ALB: /api/* -> core-api, /* -> web
 iam.tf         # task roles per service (least privilege), GitHub OIDC deploy role
 secrets.tf     # JWT_SECRET, OPENAI_API_KEY, INTERNAL_SERVICE_TOKEN, DB password
 cloudwatch.tf  # log groups, alarms, dashboard, SNS
@@ -83,6 +83,12 @@ aws secretsmanager put-secret-value \
 
 The RDS-managed master credential is exposed through `rds_master_user_secret_arn`. ECS task
 definitions will reference these ARNs when the Milestone 4 ECS configuration is added.
+
+The ECS foundation now defines a private-subnet Fargate cluster, four task definitions and
+services, a public HTTP ALB, Cloud Map names for the internal services, and secret injection via
+the ECS execution role. Task definitions use the immutable `ecs_image_tag` variable (default
+`bootstrap`). Images must exist in the four private ECR repositories before the services can
+reach `RUNNING`; the AI and web Dockerfiles are still required from their service owners.
 
 The monthly AWS budget is configured in `us-east-1` because AWS Budgets is a global billing
 service. It defaults to USD 50 with 80% actual and 100% forecasted email alerts when

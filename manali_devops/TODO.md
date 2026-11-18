@@ -40,7 +40,7 @@ Each service's `Dockerfile` + health endpoint (see `contracts/ports-and-services
 - [ ] Secrets Manager entries + task definitions reading them; budget alarm on OpenAI usage (manual check) and AWS Budgets ($ threshold) — secret containers, task-role read policies, and AWS budget Terraform are implemented; secret values and ECS task-definition wiring remain part of deployment configuration
 
 ## Milestone 4 — CI/CD to ECS (Nov 9 – Nov 20)
-- [ ] ECS cluster (Fargate), 4 services + task definitions (CPU/memory sized), ALB with path routing (`/api/*` → core-api, `/*` → web); ai-service & audit-service internal only (Service Connect / Cloud Map)
+- [ ] ECS cluster (Fargate), 4 services + task definitions (CPU/memory sized), ALB with path routing (`/api/*` → core-api, `/*` → web); ai-service & audit-service internal only (Service Connect / Cloud Map) — Terraform foundation implemented; deployment waits for all four ECR images and service-owner runtime inputs
 - [ ] GitHub Actions CD on `main`: build → push to ECR (tag = git SHA) → `aws ecs update-service` → wait stable → smoke test
 - [x] Jenkins pipeline (`jenkins/Jenkinsfile`) backend stage migrated from Gradle to Maven (2026-11-06); Jenkins in Docker locally or on EC2 remains
 - [ ] OIDC GitHub → AWS role (no long-lived keys in GitHub secrets)
