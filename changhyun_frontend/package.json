@@ -17,7 +17,8 @@
     "test": "vitest run",
     "gen:api": "openapi-typescript ../contracts/openapi/core-api.yaml -o src/lib/api/schema.d.ts",
     "mock": "node mock-server/server.mjs",
-    "mock:test": "node mock-server/selftest.mjs"
+    "mock:test": "node mock-server/selftest.mjs",
+    "mock:proxy": "node mock-server/dev-proxy.mjs"
   },
   "dependencies": {
     "next": "^15.5.0",

@@ -637,4 +637,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.log('      a chat message containing "triggererror" breaks the stream after a few tokens; MOCK_TOKEN_MS=80 slows the stream down.');
   });
 }
-export { server, seed };
+export { server, seed, USERS, PASSWORD, currentUser };
