@@ -49,6 +49,19 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:4010 pnpm dev
 
 `pnpm mock:test` checks the mock itself (30 checks, no dependencies). The mock follows the contract, not Ayushi's current controllers, so it is a development aid and not proof that the real backend works.
 
+### Trying the real core-api (partial, dev only)
+
+core-api does not have login, `/users/me` or `/chat/stream` yet, and there is no ai-service, so only the document screens can run against it
+(list, upload, versions, download). `pnpm mock:proxy` listens on :4010 **instead of** `pnpm mock`: it fakes `POST /auth/login` and `GET /users/me`
+(seed users, same password) and forwards every other call unchanged to the real core-api (`REAL_API`, default `http://localhost:8080`).
+Search and chat will answer 502/500 until the ai-service and the stream exist. The real core-api does not check tokens yet, so this is **not** a security test.
+
+```bash
+make up && make seed                                   # repo root: postgres + localstack, seed users
+# run core-api from the backend branch (Java 21), with the variables of .env, on :8080
+cd changhyun_frontend && pnpm mock:proxy && pnpm dev   # then sign in as harper.hrmgr@helios.example.com
+```
+
 ### Manual check of M2 and M3 (about 10 minutes)
 
 Run `pnpm mock` in one terminal and `pnpm dev` in another, then open <http://localhost:3000>.
