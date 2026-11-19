@@ -1,8 +1,9 @@
 // Checks the mock server itself against the contract's behavior. Run: node mock-server/selftest.mjs
 import assert from 'node:assert/strict';
-import { server } from './server.mjs';
 
 process.env.MOCK_QUEUED_MS ||= '300';
+process.env.MOCK_TOKEN_MS ||= '0'; // chat streams without pauses
+const { server } = await import('./server.mjs'); // after the env vars above: the server reads them when it loads
 await new Promise((r) => server.listen(0, r));
 const base = `http://localhost:${server.address().port}`;
 let passed = 0;
@@ -118,6 +119,97 @@ await t('chunk fetch: full text with page number; 404 for another department', a
   assert.equal(r.status, 200); assert.equal(r.body.content, hit.content); assert.ok(r.body.pageNumber >= 1);
   assert.equal((await call(`/api/v1/documents/${hit.documentId}/chunks/${hit.chunkId}`, { token: engMgr })).status, 404);
 });
+
+// ---------- chat ----------
+/** POST /chat/stream and split the body into events (contracts/streaming.md). */
+const stream = async (token, json) => {
+  const r = await fetch(`${base}/api/v1/chat/stream`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(json) });
+  const text = await r.text();
+  if (r.status !== 200) return { status: r.status, body: JSON.parse(text), events: [] };
+  const events = []; let comments = 0;
+  for (const block of text.split('\n\n')) {
+    if (!block.trim()) continue;
+    if (block.startsWith(':')) { comments++; continue; }
+    events.push({ event: /^event: (.+)$/m.exec(block)[1], data: JSON.parse(/^data: (.+)$/m.exec(block)[1]) });
+  }
+  return { status: 200, type: r.headers.get('content-type'), events, comments };
+};
+const answerOf = (events) => events.filter((e) => e.event === 'token').map((e) => e.data.text).join('');
+const PTO = 'How many unused PTO days can I carry over into next year?';
+let conv, assistantId;
+
+await t('chat/stream: event order meta, token*, citations, done; keep-alive comment; SSE content type', async () => {
+  const r = await stream(hrEmp, { message: PTO });
+  assert.equal(r.status, 200); assert.match(r.type, /text\/event-stream/);
+  const names = r.events.map((e) => e.event);
+  assert.equal(names[0], 'meta'); assert.equal(names.at(-1), 'done'); assert.equal(names.at(-2), 'citations');
+  assert.ok(names.filter((n) => n === 'token').length > 5); assert.ok(r.comments >= 1);
+  assert.ok(r.events[0].data.queryId && r.events[0].data.conversationId && r.events[0].data.messageId);
+  conv = r.events[0].data.conversationId; assistantId = r.events[0].data.messageId;
+  const done = r.events.at(-1).data; assert.equal(done.answered, true); assert.ok(done.confidence > 0 && done.latencyMs >= 0);
+});
+await t('chat/stream: every [n] marker has a citation with the contract fields', async () => {
+  const r = await stream(hrEmp, { message: PTO });
+  const text = answerOf(r.events); const cites = r.events.find((e) => e.event === 'citations').data.citations;
+  const marks = [...text.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1]));
+  assert.ok(marks.length > 0 && marks.every((n) => cites.some((c) => c.citationNumber === n)), text);
+  for (const c of cites) { assert.ok(c.documentId && c.chunkId && c.documentTitle && c.snippet.length <= 300 && c.score >= 0 && c.score <= 1 && c.version >= 1); }
+  assert.ok(cites.every((c) => ['GENERAL', 'HR'].includes(c.department)));
+});
+await t('chat/stream: nothing relevant -> the exact not-found sentence, answered false, no citations', async () => {
+  const r = await stream(hrEmp, { message: 'quantum teleportation zebra' });
+  assert.equal(answerOf(r.events), "I couldn't find this in the documents you have access to.");
+  assert.equal(r.events.find((e) => e.event === 'citations').data.citations.length, 0); assert.equal(r.events.at(-1).data.answered, false);
+});
+await t('chat: departments of others are intersected away (HR employee asking for FINANCE only)', async () => {
+  const r = await stream(hrEmp, { message: 'budget compensation salary', departments: ['FINANCE'] });
+  assert.equal(r.events.at(-1).data.answered, false);
+});
+await t('chat/stream: continuing a conversation keeps one thread; GET returns messages in order', async () => {
+  const r = await stream(hrEmp, { message: 'And what about sick days?', conversationId: conv });
+  assert.equal(r.events[0].data.conversationId, conv);
+  const c = await call(`/api/v1/conversations/${conv}`, { token: hrEmp });
+  assert.equal(c.status, 200); assert.equal(c.body.title, PTO.slice(0, 80));
+  assert.deepEqual(c.body.messages.map((m) => m.role), ['USER', 'ASSISTANT', 'USER', 'ASSISTANT']);
+  assert.ok(c.body.messages[1].citations.length > 0); assert.equal(c.body.messages[1].answered, true); assert.equal(c.body.messages[1].feedback, null);
+});
+await t('conversations: listed newest first for the owner only; others get 404', async () => {
+  const mine = await call('/api/v1/conversations', { token: hrEmp });
+  assert.equal(mine.body.items[0].id, conv); assert.ok(mine.body.totalItems >= 1);
+  assert.equal((await call('/api/v1/conversations', { token: engMgr })).body.totalItems, 0);
+  assert.equal((await call(`/api/v1/conversations/${conv}`, { token: engMgr })).status, 404);
+  assert.equal((await stream(engMgr, { message: 'hello there', conversationId: conv })).status, 404);
+});
+await t('feedback: UP stored (204) and returned in the conversation; 404 unknown or foreign message; 400 bad rating', async () => {
+  const post = (token, id, json) => call(`/api/v1/chat/messages/${id}/feedback`, { token, method: 'POST', json });
+  assert.equal((await post(hrEmp, assistantId, { rating: 'UP' })).status, 204);
+  const c = await call(`/api/v1/conversations/${conv}`, { token: hrEmp });
+  assert.equal(c.body.messages.find((m) => m.id === assistantId).feedback, 'UP');
+  assert.equal((await post(hrEmp, assistantId, { rating: 'DOWN', comment: 'not helpful' })).status, 204);
+  assert.equal((await post(engMgr, assistantId, { rating: 'UP' })).status, 404);
+  assert.equal((await post(hrEmp, c.body.messages[0].id, { rating: 'UP' })).status, 404, 'user messages cannot be rated');
+  assert.equal((await post(hrEmp, assistantId, { rating: 'MEH' })).status, 400);
+});
+await t('chat: 400 empty or too long message, 502 trigger502, error event after a few tokens (nothing saved)', async () => {
+  assert.equal((await stream(hrEmp, { message: '  ' })).status, 400);
+  assert.equal((await stream(hrEmp, { message: 'x'.repeat(2001) })).status, 400);
+  assert.equal((await stream(hrEmp, { message: 'trigger502' })).status, 502);
+  const r = await stream(hrEmp, { message: `${PTO} triggererror` });
+  const names = r.events.map((e) => e.event);
+  assert.equal(names.at(-1), 'error'); assert.ok(!names.includes('done')); assert.ok(r.events.at(-1).data.code && r.events.at(-1).data.traceId);
+  const c = await call(`/api/v1/conversations/${r.events[0].data.conversationId}`, { token: hrEmp });
+  assert.deepEqual(c.body.messages.map((m) => m.role), ['USER']);
+});
+await t('chat (non-streaming) returns a ChatResponse', async () => {
+  const r = await call('/api/v1/chat', { token: hrEmp, method: 'POST', json: { message: PTO } });
+  assert.equal(r.status, 200); assert.equal(r.body.answered, true); assert.ok(r.body.answer.includes('[1]') && r.body.citations.length >= 1 && r.body.messageId);
+});
+await t('conversations: delete -> 204, then 404; unauthenticated chat -> 401', async () => {
+  assert.equal((await call(`/api/v1/conversations/${conv}`, { token: hrEmp, method: 'DELETE' })).status, 204);
+  assert.equal((await call(`/api/v1/conversations/${conv}`, { token: hrEmp })).status, 404);
+  assert.equal((await call('/api/v1/conversations')).status, 401);
+});
+
 await t('expire-tokens makes the next call 401', async () => {
   await fetch(`${base}/__mock/expire-tokens`, { method: 'POST' });
   assert.equal((await call('/api/v1/users/me', { token: hrMgr })).status, 401);

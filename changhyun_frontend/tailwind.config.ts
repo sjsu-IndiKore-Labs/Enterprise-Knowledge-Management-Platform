@@ -7,6 +7,7 @@ const config: Config = {
     extend: {
       colors: {
         bg: 'var(--bg)',
+        sidebar: 'var(--sidebar)',
         surface: 'var(--surface)',
         'surface-2': 'var(--surface-2)',
         ink: 'var(--ink)',
@@ -28,7 +29,7 @@ const config: Config = {
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
       boxShadow: {
-        pop: '0 1px 2px rgba(19, 32, 44, 0.06), 0 8px 24px rgba(19, 32, 44, 0.12)',
+        pop: '0 1px 2px rgba(31, 31, 29, 0.05), 0 8px 24px rgba(31, 31, 29, 0.10)',
       },
     },
   },

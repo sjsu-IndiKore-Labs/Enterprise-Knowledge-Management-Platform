@@ -1,5 +1,6 @@
 import type { CurrentUser, DepartmentCode } from '@/lib/api/types';
 import { formatBytes } from '@/lib/format';
+import { canWriteDocuments } from '@/lib/permissions';
 
 export const ACCEPTED_MIME = {
   'application/pdf': ['.pdf'],
@@ -51,8 +52,9 @@ export function parseTags(input: string): string[] {
   return out;
 }
 
-export function canUpload(user: Pick<CurrentUser, 'role'> | null | undefined): boolean {
-  return user?.role === 'ADMIN' || user?.role === 'MANAGER';
+/** Upload is offered to users with the DOCUMENT_WRITE permission (UI hint; the server decides). */
+export function canUpload(user: Pick<CurrentUser, 'permissions'> | null | undefined): boolean {
+  return canWriteDocuments(user);
 }
 
 /** MANAGER: own department only. ADMIN: any. EMPLOYEE: none. UI hint only, the server enforces it. */
