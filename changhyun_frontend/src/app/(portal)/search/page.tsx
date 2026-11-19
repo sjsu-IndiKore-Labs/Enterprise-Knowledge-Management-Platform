@@ -102,7 +102,7 @@ export default function SearchPage() {
   return (
     <section className="space-y-5">
       <header>
-        <h1 className="text-xl font-semibold">Search</h1>
+        <h1 className="text-4xl font-bold tracking-tight">Search</h1>
         <p className="mt-1 text-sm text-muted">Find passages across the documents you can access.</p>
       </header>
 

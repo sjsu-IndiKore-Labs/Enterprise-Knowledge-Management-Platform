@@ -132,7 +132,7 @@ export default function UploadPage() {
   return (
     <section className="mx-auto max-w-2xl space-y-5">
       <header>
-        <h1 className="text-xl font-semibold">Upload a document</h1>
+        <h1 className="text-4xl font-bold tracking-tight">Upload a document</h1>
         <p className="mt-1 text-sm text-muted">PDF or DOCX, one file at a time.</p>
       </header>
 

@@ -88,7 +88,7 @@ export default function DocumentDetailPage() {
 
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="break-words text-xl font-semibold">{doc.title}</h1>
+          <h1 className="break-words text-3xl font-bold tracking-tight">{doc.title}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted">
             <StatusBadge status={doc.status} title={doc.status === 'FAILED' ? reason : undefined} />
             <span>{deptName}</span>
