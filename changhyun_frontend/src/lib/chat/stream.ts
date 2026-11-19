@@ -12,7 +12,7 @@ export type StreamEvent =
   | { type: 'done'; answered: boolean; confidence: number; latencyMs: number }
   | { type: 'error'; code: string; message: string; traceId?: string };
 
-const BAD_EVENT: StreamEvent = {
+const BAD_EVENT: Extract<StreamEvent, { type: 'error' }> = {
   type: 'error',
   code: 'BAD_STREAM',
   message: 'The assistant sent an answer the portal could not read. Please try again.',
