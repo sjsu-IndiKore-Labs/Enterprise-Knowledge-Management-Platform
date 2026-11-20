@@ -1,7 +1,8 @@
 # vedanti_ai/ — AI / RAG pipeline (owner: Vedanti)
 
-`ai-service`: Python 3.11 + FastAPI (see `docs/adr/0002-python-fastapi-for-ai-service.md`). One container runs both
-the HTTP API (search/answer) and the SQS ingestion worker (separate process or background task).
+`ai-service`: Python 3.11 + FastAPI (see `docs/adr/0002-python-fastapi-for-ai-service.md`). One container runs the
+HTTP API; the SQS ingestion worker can run as a separate process using the same image. The implementation is
+contract-first and defaults to deterministic fake providers for local development.
 
 ```
 vedanti_ai/
@@ -10,11 +11,9 @@ vedanti_ai/
   app/
     main.py                      # FastAPI app, /health, X-Internal-Token dependency, error handler
     config.py                    # pydantic-settings, env names exactly from .env.example
-    api/search.py  api/answer.py
-    ingestion/worker.py          # SQS long-poll loop -> pipeline -> status events
-    ingestion/extract_pdf.py  ingestion/extract_docx.py  ingestion/chunker.py
-    rag/embeddings.py            # OpenAI + FakeEmbeddings (AI_PROVIDER=fake) + cache
-    rag/retriever.py             # hybrid SQL with mandatory department pre-filter
+    api/routes.py                 # search, answer, and SSE answer routes
+    ingestion/                    # SQS worker, S3 pipeline, extraction, chunking
+    rag/                          # embeddings, retrieval, prompts, generation, guardrails
     rag/prompt.py  rag/generator.py  rag/guardrails.py
     db.py  models.py             # Pydantic models with camelCase aliases (contracts/conventions.md)
   eval/
@@ -26,9 +25,16 @@ vedanti_ai/
 
 ## Run
 ```bash
-make up && make seed                                  # repo root
-cd vedanti_ai && python -m venv .venv && . .venv/bin/activate && pip install -e ".[dev]"
-uvicorn app.main:app --reload --port 8000             # API
-python -m app.ingestion.worker                        # SQS worker
-AI_PROVIDER=fake uvicorn app.main:app --port 8000     # no OpenAI key needed
+make up                                               # repo root: Postgres + LocalStack
+cd vedanti_ai
+python -m venv .venv && . .venv/bin/activate
+pip install -e ".[dev]"
+AI_PROVIDER=fake uvicorn app.main:app --reload --port 8000
+python -m app.ingestion.worker                        # separate terminal/process
+pytest -q
 ```
+
+The internal API requires `X-Internal-Token` for search and answer routes. The browser must call
+core-api; core-api computes `allowedDepartments` from the JWT and forwards it to ai-service. The
+AI service applies that list before ranking. `resources/corpus/` remains the repeatable test/demo
+fixture; runtime uploads are stored in S3/LocalStack.
