@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@v4
       - id: f
         run: |
-          echo "backend=$([ -f ayushi_backend/gradlew ] && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "backend=$([ -f ayushi_backend/pom.xml ] && echo true || echo false)" >> $GITHUB_OUTPUT
           echo "frontend=$([ -f changhyun_frontend/package.json ] && echo true || echo false)" >> $GITHUB_OUTPUT
           echo "ai=$([ -f vedanti_ai/pyproject.toml ] && echo true || echo false)" >> $GITHUB_OUTPUT
 
@@ -47,8 +47,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 21, cache: gradle }
-      - run: ./gradlew --no-daemon build   # Testcontainers works on GitHub-hosted runners
+        with: { distribution: temurin, java-version: 21, cache: maven }
+      - run: bash ./mvnw clean package -DskipTests
 
   frontend:
     needs: detect

@@ -18,8 +18,8 @@ pipeline {
     }
     stage('Build & test') {
       parallel {
-        stage('backend')  { when { expression { fileExists('ayushi_backend/gradlew') } }
-          steps { dir('ayushi_backend') { sh './gradlew --no-daemon build' } } }
+        stage('backend')  { when { expression { fileExists('ayushi_backend/pom.xml') } }
+          steps { dir('ayushi_backend') { sh 'bash ./mvnw clean package -DskipTests' } } }
         stage('frontend') { when { expression { fileExists('changhyun_frontend/package.json') } }
           steps { dir('changhyun_frontend') { sh 'corepack enable && pnpm install --frozen-lockfile && pnpm lint && pnpm build' } } }
         stage('ai')       { when { expression { fileExists('vedanti_ai/pyproject.toml') } }

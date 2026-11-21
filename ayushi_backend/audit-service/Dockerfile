@@ -6,7 +6,7 @@ COPY ayushi_backend/common/pom.xml ./ayushi_backend/common/
 COPY ayushi_backend/core-api/pom.xml ./ayushi_backend/core-api/
 COPY ayushi_backend/audit-service/pom.xml ./ayushi_backend/audit-service/
 COPY ayushi_backend/common/src ./ayushi_backend/common/src
-COPY ayushi_backend/audit-service/src ./ayushi_backend/audit-service/
+COPY ayushi_backend/audit-service/src ./ayushi_backend/audit-service/src
 
 WORKDIR /app/ayushi_backend
 RUN mvn clean package -pl audit-service -am -DskipTests
