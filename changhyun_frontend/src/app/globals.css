@@ -3,41 +3,44 @@
 @tailwind utilities;
 
 :root {
-  --bg: #f5f7f9;
+  /* Calm document-tool palette: warm neutrals plus one accent (indigo). ok/warn/bad only carry status meaning. */
+  --bg: #ffffff;
+  --sidebar: #f8f8f6;
   --surface: #ffffff;
-  --surface-2: #eef2f5;
-  --ink: #13202c;
-  --muted: #5b6b7a;
-  --line: #d9e0e6;
-  --accent: #0f6f8f;
+  --surface-2: #f3f3f1;
+  --ink: #1f1f1d;
+  --muted: #6b6a66;
+  --line: #e8e7e3;
+  --accent: #4f46e5;
   --accent-ink: #ffffff;
-  --accent-soft: #dff0f6;
-  --ok: #1d8a4e;
-  --ok-soft: #e1f4e9;
-  --warn: #a96a00;
-  --warn-soft: #fdf0d5;
-  --bad: #c0392b;
-  --bad-soft: #fbe5e2;
-  --mark: #fff0a8;
+  --accent-soft: #eeedfc;
+  --ok: #2f7d52;
+  --ok-soft: #e9f4ee;
+  --warn: #946200;
+  --warn-soft: #fbf3df;
+  --bad: #b4382c;
+  --bad-soft: #fbeae8;
+  --mark: #fff1b3;
   color-scheme: light;
 }
 
 :root[data-theme='dark'] {
-  --bg: #0f161d;
-  --surface: #17212b;
-  --surface-2: #1f2c38;
-  --ink: #e8eef3;
-  --muted: #9aabba;
-  --line: #2c3b49;
-  --accent: #4fb3d4;
-  --accent-ink: #0b1a22;
-  --accent-soft: #163645;
-  --ok: #5fcf92;
-  --ok-soft: #14301f;
-  --warn: #f0b95a;
-  --warn-soft: #3a2c10;
-  --bad: #ff8b7d;
-  --bad-soft: #3b1b17;
+  --bg: #191919;
+  --sidebar: #1d1d1c;
+  --surface: #202020;
+  --surface-2: #2b2b2a;
+  --ink: #ececea;
+  --muted: #9b9a96;
+  --line: #333331;
+  --accent: #a5a8ff;
+  --accent-ink: #14142b;
+  --accent-soft: #2a2a4d;
+  --ok: #6fcf9a;
+  --ok-soft: #17301f;
+  --warn: #e8b865;
+  --warn-soft: #382c12;
+  --bad: #ff9488;
+  --bad-soft: #3a1d19;
   --mark: #6b5a10;
   color-scheme: dark;
 }
@@ -49,7 +52,7 @@ body {
 }
 
 body {
-  @apply font-sans antialiased;
+  @apply font-sans text-[15px] leading-relaxed antialiased;
 }
 
 [hidden] {
@@ -63,13 +66,13 @@ body {
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-md border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply border-accent bg-accent text-accent-ink hover:opacity-90;
+    @apply border-accent bg-accent text-accent-ink hover:bg-accent hover:opacity-90;
   }
   .input {
-    @apply w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted;
+    @apply w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink transition-colors placeholder:text-muted focus:border-accent;
   }
   .label {
     @apply mb-1 block text-sm font-medium text-ink;

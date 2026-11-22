@@ -30,3 +30,9 @@ export function titleCase(code: string): string {
 export function formatScore(score: number): string {
   return Number.isFinite(score) ? score.toFixed(2) : '-';
 }
+
+/** "PTO and Leave Policy · page 2". DOCX has no pages, so it shows the section, then the version. */
+export function citationLabel(c: { documentTitle: string; pageNumber?: number | null; sectionTitle?: string | null; version: number }): string {
+  const where = c.pageNumber ? `page ${c.pageNumber}` : c.sectionTitle || `version ${c.version}`;
+  return `${c.documentTitle} · ${where}`;
+}

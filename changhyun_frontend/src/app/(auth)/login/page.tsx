@@ -9,7 +9,7 @@ import { config } from '@/lib/config';
 
 function safeNext(raw: string | null): string {
   // Only same-origin paths; never an absolute URL (open-redirect guard).
-  return raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/documents';
+  return raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/chat';
 }
 
 function LoginForm() {

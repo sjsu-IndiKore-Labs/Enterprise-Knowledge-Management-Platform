@@ -18,6 +18,14 @@ export type Chunk = S['Chunk'];
 export type SearchMode = S['SearchMode'];
 export type SearchResult = S['SearchResult'];
 export type SearchResponse = S['SearchResponse'];
+export type Citation = S['Citation'];
+export type ChatRequest = S['ChatRequest'];
+export type ChatMessage = S['ChatMessage'];
+export type Conversation = S['Conversation'];
+export type ConversationDetail = S['ConversationDetail'];
+export type ConversationPage = S['ConversationPage'];
+export type FeedbackRating = S['FeedbackRequest']['rating'];
+export type Permission = NonNullable<CurrentUser['permissions']>[number];
 
 /** Values mirror the enums in contracts/openapi/core-api.yaml. */
 export const DEPARTMENT_CODES: DepartmentCode[] = [
