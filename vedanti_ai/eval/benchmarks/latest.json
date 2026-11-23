@@ -1,0 +1,68 @@
+{
+  "provider": "fake",
+  "results": [
+    {
+      "strategy": "fixed_500_overlap_80",
+      "topK": 4,
+      "recallAtK": 0.9355,
+      "matchedSources": 29,
+      "expectedSources": 31
+    },
+    {
+      "strategy": "fixed_500_overlap_80",
+      "topK": 6,
+      "recallAtK": 0.9677,
+      "matchedSources": 30,
+      "expectedSources": 31
+    },
+    {
+      "strategy": "fixed_500_overlap_80",
+      "topK": 8,
+      "recallAtK": 0.9677,
+      "matchedSources": 30,
+      "expectedSources": 31
+    },
+    {
+      "strategy": "section_aware",
+      "topK": 4,
+      "recallAtK": 0.7097,
+      "matchedSources": 22,
+      "expectedSources": 31
+    },
+    {
+      "strategy": "section_aware",
+      "topK": 6,
+      "recallAtK": 0.7419,
+      "matchedSources": 23,
+      "expectedSources": 31
+    },
+    {
+      "strategy": "section_aware",
+      "topK": 8,
+      "recallAtK": 0.7419,
+      "matchedSources": 23,
+      "expectedSources": 31
+    },
+    {
+      "strategy": "page_aware_recursive",
+      "topK": 4,
+      "recallAtK": 0.9355,
+      "matchedSources": 29,
+      "expectedSources": 31
+    },
+    {
+      "strategy": "page_aware_recursive",
+      "topK": 6,
+      "recallAtK": 0.9677,
+      "matchedSources": 30,
+      "expectedSources": 31
+    },
+    {
+      "strategy": "page_aware_recursive",
+      "topK": 8,
+      "recallAtK": 0.9677,
+      "matchedSources": 30,
+      "expectedSources": 31
+    }
+  ]
+}

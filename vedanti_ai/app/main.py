@@ -61,5 +61,7 @@ async def health() -> dict[str, str]:
         "status": "UP" if database == "UP" else "DEGRADED",
         "provider": settings.ai_provider,
         "database": database,
-        "queueConsumer": "SEPARATE_PROCESS",
+        # The worker is intentionally a separate process/container. The API
+        # must not claim it is running when only the HTTP process is alive.
+        "queueConsumer": "STOPPED",
     }

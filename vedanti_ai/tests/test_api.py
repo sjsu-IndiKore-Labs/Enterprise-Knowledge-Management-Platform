@@ -1,9 +1,8 @@
 from uuid import uuid4
 
-from fastapi.testclient import TestClient
-
 from app.config import get_settings
 from app.main import app
+from fastapi.testclient import TestClient
 
 
 def test_internal_routes_require_token():
@@ -19,6 +18,7 @@ def test_health_reports_local_store():
     assert response.status_code == 200
     assert response.json()["status"] == "UP"
     assert response.json()["database"] == "UP"
+    assert response.json()["queueConsumer"] in {"RUNNING", "STOPPED"}
 
 
 def test_authorized_search_and_stream_routes_have_contract_shape():

@@ -35,6 +35,10 @@ python -m app.ingestion.worker                        # separate terminal/proces
 pytest -q
 ```
 
+The HTTP API and ingestion worker are separate processes. The worker must be
+run as a second container/process in the shared Compose or ECS deployment; the
+HTTP container alone does not consume the SQS ingestion queue.
+
 The internal API requires `X-Internal-Token` for search and answer routes. The browser must call
 core-api; core-api computes `allowedDepartments` from the JWT and forwards it to ai-service. The
 AI service applies that list before ranking. `resources/corpus/` remains the repeatable test/demo

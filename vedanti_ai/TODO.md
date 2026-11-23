@@ -25,7 +25,8 @@ tests, the 40-question evaluator, and the 3-strategy chunking benchmark.
 Still requiring the team integration environment or a product decision: run
 against Postgres/pgvector and LocalStack, validate Docker Compose, run with
 real OpenAI providers, implement the reindex queue contract against the
-document metadata source, and complete staging evaluation/cost reporting.
+document metadata source, add a separately deployed SQS worker to Compose/ECS,
+and complete staging evaluation/cost reporting.
 These are intentionally not marked complete just because offline tests pass.
 
 ## You PROVIDE
