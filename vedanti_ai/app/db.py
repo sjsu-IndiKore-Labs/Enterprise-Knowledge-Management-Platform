@@ -44,7 +44,11 @@ class InMemoryChunkStore:
     def __init__(self) -> None:
         self._chunks: dict[UUID, StoredChunk] = {}
 
+    def health(self) -> str:
+        return "UP"
+
     def replace_version(self, version_id: UUID, chunks: list[Chunk], embeddings: list[list[float]], previous_version_id: UUID | None = None) -> None:
+        self.mark_previous_version_not_current(previous_version_id)
         for chunk_id, stored in list(self._chunks.items()):
             if stored.chunk.version_id == version_id:
                 del self._chunks[chunk_id]
@@ -99,6 +103,14 @@ class PostgresChunkStore:
 
     def __init__(self, connection_pool):
         self.pool = connection_pool
+
+    def health(self) -> str:
+        try:
+            with self.pool.connection() as connection, connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+            return "UP"
+        except Exception:  # noqa: BLE001 - health must return a response when DB is unavailable.
+            return "DOWN"
 
     def replace_version(self, version_id: UUID, chunks: list[Chunk], embeddings: list[list[float]], previous_version_id: UUID | None = None) -> None:
         insert_sql = """
@@ -199,7 +211,9 @@ class PostgresChunkStore:
 
 
 def create_store(settings):
-    if settings.app_env not in {"staging", "prod"}:
+    # Docker Compose overrides POSTGRES_HOST to `postgres`; local unit tests
+    # keep the in-memory store so the service can run without infrastructure.
+    if settings.postgresql_host != "postgres" and settings.app_env not in {"staging", "prod"}:
         return InMemoryChunkStore()
     from psycopg_pool import ConnectionPool
 

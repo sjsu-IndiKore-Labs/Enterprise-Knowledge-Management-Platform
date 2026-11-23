@@ -41,6 +41,24 @@ class RagService:
         self.store.replace_version(chunks[0].version_id, chunks, embeddings, previous_version_id)
         return len(chunks)
 
+    @staticmethod
+    def rewrite_query(query: str, history) -> str:
+        """Resolve simple follow-ups without sending conversation text to retrieval blindly."""
+        if not history:
+            return query
+        follow_up_markers = ("it", "that", "this", "they", "them", "also", "what about", "how about", "how much", "how many")
+        lowered = query.lower()
+        starts_as_follow_up = lowered.lstrip().startswith(("and ", "also ", "what about", "how about"))
+        if not starts_as_follow_up and not any(marker in lowered.split() for marker in follow_up_markers[:6]) and not any(marker in lowered for marker in follow_up_markers[6:]):
+            return query
+        previous_user = next(
+            (message.content for message in reversed(history) if message.role.upper() == "USER"),
+            None,
+        )
+        if previous_user:
+            return f"{previous_user} Follow-up question: {query}"
+        return query
+
     def search(self, request: SearchRequest) -> SearchResponse:
         started = monotonic()
         query_embedding = self.embeddings.embed([request.query])[0]
@@ -88,9 +106,10 @@ class RagService:
                 citations=[],
                 latencyMs=int((monotonic() - started) * 1000),
             )
+        retrieval_query = self.rewrite_query(request.query, request.history)
         search_response = self.search(
             SearchRequest(
-                query=request.query,
+                query=retrieval_query,
                 allowedDepartments=request.allowed_departments,
                 mode="HYBRID",
                 topK=request.top_k,

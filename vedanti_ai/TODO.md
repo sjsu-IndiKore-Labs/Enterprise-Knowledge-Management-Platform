@@ -12,6 +12,22 @@ pre-filtered by the `allowedDepartments` core-api sends. (3) **Answering**: grou
 from context", `[n]` citations, "not found" below a similarity threshold, streamed as SSE. (4) **Evaluation & knowledge gaps**:
 measure faithfulness/relevance/recall on the golden set and decide `answered` / `confidence` for gap detection.
 
+## Current implementation status — Nov 20, 2026
+
+Verified locally with the fake provider: contract-shaped FastAPI routes and
+errors, token authentication, request IDs, PDF/DOCX extraction and cleaning,
+metadata-preserving chunking, deterministic embeddings, OpenAI adapters with
+batching/retry/token counting, in-memory hybrid retrieval, department and
+version isolation, grounded answer generation, citation filtering, injection
+refusal, SSE events, S3/SQS worker code, Docker configuration, nine automated
+tests, the 40-question evaluator, and the 3-strategy chunking benchmark.
+
+Still requiring the team integration environment or a product decision: run
+against Postgres/pgvector and LocalStack, validate Docker Compose, run with
+real OpenAI providers, implement the reindex queue contract against the
+document metadata source, and complete staging evaluation/cost reporting.
+These are intentionally not marked complete just because offline tests pass.
+
 ## You PROVIDE
 | To | What | Contract |
 |---|---|---|

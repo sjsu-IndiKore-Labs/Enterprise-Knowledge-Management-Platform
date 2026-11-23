@@ -40,6 +40,7 @@ def run_worker() -> None:
             VisibilityTimeout=300,
         )
         for message in response.get("Messages", []):
+            event = None
             try:
                 event = IngestEvent.model_validate(json.loads(message["Body"]))
                 processing = pipeline._status(event, "PROCESSING")
@@ -51,8 +52,11 @@ def run_worker() -> None:
                 sqs.send_message(QueueUrl=status_url, MessageBody=result.model_dump_json(by_alias=True))
                 sqs.delete_message(QueueUrl=ingest_url, ReceiptHandle=message["ReceiptHandle"])
             except Exception as exc:  # noqa: BLE001 - leave message for SQS retry/DLQ handling.
-                # Leave the message visible for SQS retry/DLQ policy. A status
-                # event is emitted only when the event could be parsed.
+                if event is not None:
+                    error_code = "S3_READ_FAILED" if "download" in str(exc).lower() else "INTERNAL_ERROR"
+                    failed = pipeline._status(event, "FAILED", error_code=error_code, error_message=str(exc)[:1000])
+                    sqs.send_message(QueueUrl=status_url, MessageBody=failed.model_dump_json(by_alias=True))
+                # Leave the message visible for SQS retry/DLQ policy.
                 print(json.dumps({"level": "error", "message": "ingestion_failed", "error": str(exc)[:1000]}))
 
 

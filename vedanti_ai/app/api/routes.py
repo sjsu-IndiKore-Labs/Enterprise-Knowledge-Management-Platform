@@ -29,7 +29,9 @@ def create_router(service: RagService) -> APIRouter:
 
         async def events():
             if response.answer:
-                yield {"event": "token", "data": json.dumps({"text": response.answer})}
+                words = response.answer.split(" ")
+                for index, word in enumerate(words):
+                    yield {"event": "token", "data": json.dumps({"text": word + (" " if index < len(words) - 1 else "")})}
             yield {
                 "event": "citations",
                 "data": json.dumps({"citations": [citation.model_dump(by_alias=True, exclude_none=True) for citation in response.citations]}),

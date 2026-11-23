@@ -26,11 +26,26 @@ def extract_pdf(path: str | Path) -> list[ExtractedSegment]:
 
     try:
         reader = PdfReader(str(path))
-        segments: list[ExtractedSegment] = []
+        raw_pages: list[tuple[int, str]] = []
         for index, page in enumerate(reader.pages, start=1):
             text = clean_text(page.extract_text() or "")
             if text:
-                segments.append(ExtractedSegment(text=text, page_number=index))
+                raw_pages.append((index, text))
+        repeated_lines: set[str] = set()
+        for position in ("first", "last"):
+            candidates = []
+            for _, text in raw_pages:
+                lines = [line.strip() for line in text.splitlines() if line.strip()]
+                if lines:
+                    candidates.append(lines[0] if position == "first" else lines[-1])
+            counts = {line: candidates.count(line) for line in set(candidates)}
+            repeated_lines.update(line for line, count in counts.items() if count >= 2)
+        segments: list[ExtractedSegment] = []
+        for index, text in raw_pages:
+            lines = [line for line in text.splitlines() if line.strip() not in repeated_lines]
+            cleaned = clean_text("\n".join(lines))
+            if cleaned:
+                segments.append(ExtractedSegment(text=cleaned, page_number=index))
         if not segments:
             raise ValueError("NO_EXTRACTABLE_TEXT")
         return segments

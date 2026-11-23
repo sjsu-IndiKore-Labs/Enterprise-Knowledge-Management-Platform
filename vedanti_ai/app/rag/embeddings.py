@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import time
 from collections import OrderedDict
 from time import monotonic
 
@@ -15,13 +16,12 @@ class FakeEmbeddings:
     def embed(self, texts: list[str]) -> list[list[float]]:
         vectors = []
         for text in texts:
-            values = []
-            counter = 0
-            while len(values) < self.dimensions:
-                digest = hashlib.sha256(f"{text}\0{counter}".encode()).digest()
-                values.extend((byte / 127.5) - 1.0 for byte in digest)
-                counter += 1
-            values = values[: self.dimensions]
+            values = [0.0] * self.dimensions
+            tokens = text.lower().split()
+            for token in tokens:
+                digest = hashlib.sha256(token.strip(".,:;!?()[]{}\"").encode()).digest()
+                index = int.from_bytes(digest[:4], "big") % self.dimensions
+                values[index] += 1.0 if digest[4] % 2 else -1.0
             norm = math.sqrt(sum(value * value for value in values)) or 1.0
             vectors.append([value / norm for value in values])
         return vectors
@@ -65,14 +65,39 @@ class OpenAIEmbeddings:
         self.client = OpenAI(api_key=api_key)
         self.model = model
         self.dimensions = dimensions
+        self.last_token_count = 0
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         vectors: list[list[float]] = []
         for start in range(0, len(texts), 100):
-            response = self.client.embeddings.create(
-                model=self.model,
-                input=texts[start : start + 100],
-                dimensions=self.dimensions,
-            )
+            batch = texts[start : start + 100]
+            response = None
+            last_error = None
+            for attempt in range(3):
+                try:
+                    response = self.client.embeddings.create(
+                        model=self.model,
+                        input=batch,
+                        dimensions=self.dimensions,
+                    )
+                    break
+                except Exception as exc:  # noqa: BLE001 - retry transient provider failures.
+                    last_error = exc
+                    if attempt < 2:
+                        time.sleep(2**attempt)
+            if response is None:
+                raise RuntimeError("EMBEDDING_FAILED") from last_error
             vectors.extend(item.embedding for item in response.data)
+            self.last_token_count += sum(getattr(response.usage, "prompt_tokens", 0) for _ in [0]) if response.usage else 0
         return vectors
+
+
+def count_tokens(text: str, model: str = "text-embedding-3-small") -> int:
+    """Use the model tokenizer when installed; fall back to a safe estimate."""
+    try:
+        import tiktoken
+
+        encoding = tiktoken.encoding_for_model(model)
+        return len(encoding.encode(text))
+    except Exception:  # noqa: BLE001 - token counting must not block ingestion.
+        return len(text.split())

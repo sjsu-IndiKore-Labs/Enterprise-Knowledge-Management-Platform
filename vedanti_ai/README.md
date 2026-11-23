@@ -18,7 +18,8 @@ vedanti_ai/
     db.py  models.py             # Pydantic models with camelCase aliases (contracts/conventions.md)
   eval/
     run_eval.py                  # runs resources/eval/golden_qa.jsonl, writes resources/eval/results/
-    benchmarks/                  # chunking / embedding benchmark notebooks + results (Milestone 1)
+    run_benchmark.py             # compares 3 chunking strategies × topK 4/6/8
+    benchmarks/                  # benchmark instructions and generated local results
   tests/
   Dockerfile
 ```

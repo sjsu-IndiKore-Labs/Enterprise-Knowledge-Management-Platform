@@ -55,10 +55,11 @@ async def handle_validation_exception(request: Request, exception: RequestValida
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    """Report whether the AI service process is alive."""
+    """Report process and persistence health for container orchestration."""
+    database = rag_service.store.health()
     return {
-        "status": "DEGRADED",
+        "status": "UP" if database == "UP" else "DEGRADED",
         "provider": settings.ai_provider,
-        "database": "DOWN",
-        "queueConsumer": "STOPPED",
+        "database": database,
+        "queueConsumer": "SEPARATE_PROCESS",
     }

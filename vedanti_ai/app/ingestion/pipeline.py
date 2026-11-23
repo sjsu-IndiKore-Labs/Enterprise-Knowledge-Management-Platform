@@ -10,6 +10,7 @@ from app.config import Settings
 from app.ingestion.chunker import chunk_segments
 from app.ingestion.extract import extract_document
 from app.models import IngestEvent, IngestStatus
+from app.rag.embeddings import count_tokens
 from app.rag.service import RagService
 
 
@@ -35,10 +36,17 @@ class IngestionPipeline:
             )
             self.rag_service.index_chunks(chunks, event.previous_version_id)
             elapsed = int((datetime.now(UTC) - started).total_seconds() * 1000)
-            return self._status(event, "INDEXED", page_count=len({c.page_number for c in chunks if c.page_number}), chunk_count=len(chunks), processing_ms=elapsed)
+            return self._status(
+                event,
+                "INDEXED",
+                page_count=len({c.page_number for c in chunks if c.page_number}),
+                chunk_count=len(chunks),
+                embedding_tokens=sum(count_tokens(chunk.content) for chunk in chunks),
+                processing_ms=elapsed,
+            )
         except ValueError as exc:
             error_code = str(exc) if str(exc) in {
-                "UNSUPPORTED_FORMAT", "CORRUPT_FILE", "NO_EXTRACTABLE_TEXT"
+                "UNSUPPORTED_FORMAT", "CORRUPT_FILE", "NO_EXTRACTABLE_TEXT", "EMBEDDING_FAILED", "DB_WRITE_FAILED"
             } else "INTERNAL_ERROR"
             return self._status(event, "FAILED", error_code=error_code, error_message=str(exc)[:1000])
         except Exception as exc:  # noqa: BLE001 - convert unexpected parser/provider errors to contract status.
