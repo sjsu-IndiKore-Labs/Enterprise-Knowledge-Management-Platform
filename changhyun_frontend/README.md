@@ -23,8 +23,9 @@ changhyun_frontend/
     lib/api/chatStream.ts               # fetch + ReadableStream SSE parser (contracts/streaming.md)
     components/  hooks/  styles/
   wireframes/                           # Milestone 1 wireframes (PNG/Figma links)
-  Dockerfile
 ```
+
+Image: `manali_devops/docker/node-web.Dockerfile` (needs `output: 'standalone'`).
 
 ## Run
 ```bash

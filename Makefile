@@ -3,10 +3,14 @@ SHELL := /bin/bash
 COMPOSE := docker compose
 API ?= http://localhost:8080
 PY ?= .venv/bin/python
+TF_DIR := manali_devops/infra/terraform
+TF_ENV ?= staging
+TAG ?= $(shell git rev-parse HEAD)
 AJV := npx --yes -p ajv-cli@5 -p ajv-formats@3 ajv validate --spec=draft2020 --strict=false -c ajv-formats
 
-.PHONY: help env up up-apps down reset logs ps seed psql mock-core-api mock-ai-service lint-contracts \
-        corpus ingest-corpus questions send-test-ingest
+.PHONY: help env up up-apps down reset logs ps seed migrate-raw psql mock-core-api mock-ai-service mocks lint-contracts \
+        corpus ingest-corpus questions send-test-ingest test-devops test-integration test-docker smoke \
+        tf-init tf-fmt tf-validate tf-test tf-plan tf-apply deploy aws-sleep aws-wake
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -74,3 +78,53 @@ questions: ## List open questions per inbox
 	@for d in questions/to-*; do \
 	  open=$$(grep -l "^status: open" $$d/*.md 2>/dev/null); \
 	  if [ -n "$$open" ]; then echo "== $$d"; echo "$$open" | sed 's/^/   /'; fi; done; true
+
+mocks: ## Prism mocks in Docker: core-api :4010, ai-service :4011 (no Node needed)
+	$(COMPOSE) --profile mocks up -d mock-core-api mock-ai-service
+
+# ---------------------------------------------------------------- DevOps tests
+.venv-devops:
+	python3 -m venv .venv-devops && .venv-devops/bin/pip install -q -r manali_devops/tests/requirements.txt
+
+test-devops: .venv-devops ## Config tests: env vars, compose, Dockerfiles, workflows, scripts (no Docker needed)
+	.venv-devops/bin/pytest manali_devops/tests -m "not integration"
+
+test-integration: .venv-devops ## Live tests against local Postgres+pgvector and LocalStack (run `make up migrate-raw seed` first)
+	.venv-devops/bin/pytest manali_devops/tests -m integration
+
+test-docker: ## Build each Dockerfile template against its fixture app, run it, wait for healthy
+	manali_devops/tests/docker/test_images.sh
+
+smoke: .venv-devops ## Smoke-test a deployment: make smoke URL=http://<alb-dns>
+	.venv-devops/bin/python manali_devops/tests/smoke/smoke_test.py --base-url $(URL) --allow-missing
+
+# ---------------------------------------------------------------- Terraform (AWS)
+tf-init: ## terraform init with environments/$(TF_ENV).backend.hcl
+	cd $(TF_DIR) && terraform init -backend-config=environments/$(TF_ENV).backend.hcl
+
+tf-fmt: ## terraform fmt (recursive)
+	cd $(TF_DIR) && terraform fmt -recursive
+
+tf-validate: ## terraform validate without a backend
+	cd $(TF_DIR) && terraform init -backend=false -input=false >/dev/null && terraform validate
+
+tf-test: ## terraform test (offline, mocked AWS)
+	cd $(TF_DIR) && terraform init -backend=false -input=false >/dev/null && terraform test
+
+tf-plan: ## terraform plan for $(TF_ENV)
+	cd $(TF_DIR) && terraform plan -var-file=environments/$(TF_ENV).tfvars -out=$(TF_ENV).tfplan
+
+tf-apply: ## apply the saved plan for $(TF_ENV)
+	cd $(TF_DIR) && terraform apply $(TF_ENV).tfplan
+
+deploy: ## Build, push and deploy TAG (default HEAD) to $(TF_ENV) from your machine (needs AWS creds)
+	$(eval REGISTRY := $(shell aws sts get-caller-identity --query Account --output text).dkr.ecr.$${AWS_REGION:-us-west-2}.amazonaws.com)
+	aws ecr get-login-password | docker login --username AWS --password-stdin $(REGISTRY)
+	ECR_REGISTRY=$(REGISTRY) manali_devops/scripts/build-push.sh $(TF_ENV) $(TAG) | tee /tmp/ekm-build.log
+	manali_devops/scripts/ecs-deploy.sh $(TF_ENV) $(TAG) $$(grep '^PUSHED:' /tmp/ekm-build.log | cut -d' ' -f2- | sed 's/ai-service/ai-service ai-worker/')
+
+aws-sleep: ## Scale staging ECS to 0 and stop RDS (save money when idle)
+	manali_devops/scripts/staging-power.sh down $(TF_ENV)
+
+aws-wake: ## Start RDS and scale staging ECS back to 1
+	manali_devops/scripts/staging-power.sh up $(TF_ENV)

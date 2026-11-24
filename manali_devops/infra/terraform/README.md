@@ -1,17 +1,19 @@
-# Terraform (Milestone 2–4)
+# Terraform: AWS staging stack
 
-Planned modules / files:
+Flat, single-environment stack (one `tfvars` per environment). Start with [../../docs/aws-deployment.md](../../docs/aws-deployment.md).
+
+| File | Resources |
+|---|---|
+| `versions.tf`, `variables.tf`, `locals.tf`, `outputs.tf` | providers, inputs (sizing in `var.services`), naming from `contracts/ports-and-services.md` |
+| `network.tf`, `security_groups.tf` | VPC, 2 public + 2 private subnets, optional NAT, S3 endpoint, SGs |
+| `ecr.tf`, `ecs.tf`, `alb.tf` | registries, cluster, task definitions, services, Service Connect, autoscaling, load balancer |
+| `s3.tf`, `sqs.tf`, `rds.tf`, `secrets.tf`, `iam.tf` | data stores, queues, secrets, least-privilege roles |
+| `monitoring.tf`, `github_oidc.tf` | alarms, dashboard, SNS, budget; GitHub deploy role |
+| `bootstrap/` | state bucket + lock table (run once) |
+| `tests/stack.tftest.hcl` | offline unit tests (`make tf-test`) |
+
+```bash
+make tf-validate          # no AWS needed
+make tf-test              # no AWS needed
+make tf-init TF_ENV=staging && make tf-plan TF_ENV=staging && make tf-apply TF_ENV=staging
 ```
-main.tf  providers.tf  variables.tf  outputs.tf  backend.tf
-network.tf     # VPC, 2 public + 2 private subnets, NAT (or VPC endpoints to save cost)
-ecr.tf         # ekm-core-api, ekm-audit-service, ekm-ai-service, ekm-web
-s3.tf          # ekm-documents-<env>-<account>, SSE-KMS, versioning, block public access
-sqs.tf         # 3 queues + DLQs (names in contracts/ports-and-services.md)
-rds.tf         # Postgres 16, pgvector, private
-ecs.tf         # cluster, task defs, services, Service Connect
-alb.tf         # /api/* -> core-api, /* -> web
-iam.tf         # task roles per service (least privilege), GitHub OIDC deploy role
-secrets.tf     # JWT_SECRET, OPENAI_API_KEY, INTERNAL_SERVICE_TOKEN, DB password
-cloudwatch.tf  # log groups, alarms, dashboard, SNS
-```
-Environment values in `staging.tfvars` (git-ignored; commit `staging.tfvars.example`).

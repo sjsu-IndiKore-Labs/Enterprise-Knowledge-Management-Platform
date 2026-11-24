@@ -34,6 +34,6 @@ flowchart LR
 | Async | SQS for ingestion (heavy, slow) and audit (fire-and-forget). DLQ after 3 attempts |
 | Security | JWT (HS256) issued by core-api; RBAC (EMPLOYEE/MANAGER/ADMIN); department isolation enforced in core-api **and** in the SQL of the retriever; ai-service internal-only |
 | AI | text-embedding-3-small (1536-d), gpt-4o-mini; hybrid retrieval (cosine + Postgres FTS); grounded prompt with `[n]` citations; similarity threshold → "not found" → knowledge gap |
-| Ops | Docker everywhere; GitHub Actions + Jenkins → ECR → ECS Fargate; CloudWatch logs/metrics/alarms |
+| Ops | Docker everywhere (templates in `manali_devops/docker`); Terraform; GitHub Actions (OIDC) + Jenkins → ECR → ECS Fargate (5 services incl. separate `ai-worker`); CloudWatch logs/metrics/alarms. Details: `manali_devops/docs/aws-architecture.md` |
 
 See [integration-guide.md](integration-guide.md) for the end-to-end sequences.

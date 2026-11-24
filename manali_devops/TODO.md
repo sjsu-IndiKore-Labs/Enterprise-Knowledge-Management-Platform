@@ -25,29 +25,29 @@ Each service's `Dockerfile` + health endpoint (see `contracts/ports-and-services
 - [ ] Get every member to acknowledge `questions/to-all/2026-10-19_from-manali_confirm-architecture-and-contracts-v1.md`
 - [ ] Protect `main` and `develop` (PR required, 1 approval, CI green); set `develop` as default PR target
 - [ ] Verify `make up` on Mac + Windows (WSL2): postgres+pgvector healthy, LocalStack creates bucket + 6 queues, `make seed` works
-- [ ] Docker base templates for Java (Temurin 21, multi-stage), Node 20 (Next standalone), Python 3.11-slim — add to `docs/` or each owner's folder via PR they approve
-- [ ] CI (`.github/workflows/ci.yml`): contracts lint + event examples validation; per-service jobs that run only when the service exists
+- [x] Docker base templates for Java (Temurin 21, multi-stage), Node 20 (Next standalone), Python 3.11-slim — add to `docs/` or each owner's folder via PR they approve
+- [x] CI (`.github/workflows/ci.yml`): contracts lint + event examples validation; per-service jobs that run only when the service exists
 
 ## Milestone 2 — S3, SQS, compose (Oct 12 – Oct 25)
-- [ ] LocalStack init script final (bucket, CORS for presigned URLs, queues with redrive policy maxReceiveCount=3, visibility 300 s on ingest)
-- [ ] Terraform skeleton (`infra/terraform`): remote state (S3 + DynamoDB lock), VPC (2 AZ, public/private subnets), ECR repos ×4
-- [ ] Terraform: S3 bucket with **KMS (SSE-KMS)**, block public access, versioning; SQS queues + DLQs; IAM policies (core-api: S3 put/get + SQS send ingest/audit + receive status; ai-service: S3 get + SQS receive ingest + send status; audit-service: SQS receive audit)
-- [ ] `docker-compose.yml` `apps` profile works as soon as the first Dockerfile lands
+- [x] LocalStack init script final (bucket, CORS for presigned URLs, queues with redrive policy maxReceiveCount=3, visibility 300 s on ingest)
+- [x] Terraform skeleton (`infra/terraform`): remote state (S3 + DynamoDB lock), VPC (2 AZ, public/private subnets), ECR repos ×4
+- [x] Terraform: S3 bucket with **KMS (SSE-KMS)**, block public access, versioning; SQS queues + DLQs; IAM policies (core-api: S3 put/get + SQS send ingest/audit + receive status; ai-service: S3 get + SQS receive ingest + send status; audit-service: SQS receive audit)
+- [x] `docker-compose.yml` `apps` profile works as soon as the first Dockerfile lands
 
 ## Milestone 3 — Database in AWS (Oct 26 – Nov 8)
-- [ ] RDS PostgreSQL 16 (db.t4g.micro, free-tier) with `CREATE EXTENSION vector` (RDS supports pgvector), private subnet, SG only from ECS tasks
-- [ ] Secrets Manager entries + task definitions reading them; budget alarm on OpenAI usage (manual check) and AWS Budgets ($ threshold)
+- [x] RDS PostgreSQL 16 (db.t4g.micro, free-tier) with `CREATE EXTENSION vector` (RDS supports pgvector), private subnet, SG only from ECS tasks
+- [x] Secrets Manager entries + task definitions reading them; budget alarm on OpenAI usage (manual check) and AWS Budgets ($ threshold)
 
 ## Milestone 4 — CI/CD to ECS (Nov 9 – Nov 20)
-- [ ] ECS cluster (Fargate), 4 services + task definitions (CPU/memory sized), ALB with path routing (`/api/*` → core-api, `/*` → web); ai-service & audit-service internal only (Service Connect / Cloud Map)
-- [ ] GitHub Actions CD on `main`: build → push to ECR (tag = git SHA) → `aws ecs update-service` → wait stable → smoke test
-- [ ] Jenkins pipeline (`jenkins/Jenkinsfile`) doing the same stages (course requirement); Jenkins in Docker locally or on EC2
-- [ ] OIDC GitHub → AWS role (no long-lived keys in GitHub secrets)
+- [x] ECS cluster (Fargate), 4 services + task definitions (CPU/memory sized), ALB with path routing (`/api/*` → core-api, `/*` → web); ai-service & audit-service internal only (Service Connect / Cloud Map)
+- [x] GitHub Actions CD on `main`: build → push to ECR (tag = git SHA) → `aws ecs update-service` → wait stable → smoke test
+- [x] Jenkins pipeline (`jenkins/Jenkinsfile`) doing the same stages (course requirement); Jenkins in Docker locally or on EC2
+- [x] OIDC GitHub → AWS role (no long-lived keys in GitHub secrets)
 
 ## Milestone 5 — Observability (Nov 21 – Nov 28)
-- [ ] CloudWatch log groups per service (awslogs driver, 14-day retention), JSON logs searchable by `traceId`
-- [ ] Metrics + alarms: ECS CPU/memory, ALB 5xx & p95 latency, SQS `ApproximateAgeOfOldestMessage` on ingest, **DLQ depth > 0**, RDS CPU/storage; SNS email
-- [ ] CloudWatch dashboard (screenshot for the report)
+- [x] CloudWatch log groups per service (awslogs driver, 14-day retention), JSON logs searchable by `traceId`
+- [x] Metrics + alarms: ECS CPU/memory, ALB 5xx & p95 latency, SQS `ApproximateAgeOfOldestMessage` on ingest, **DLQ depth > 0**, RDS CPU/storage; SNS email
+- [x] CloudWatch dashboard (screenshot for the report)
 - [ ] k6 load test (`load-test/chat.js`) with `resources/load-test/queries.csv`: 20 virtual users × 5 min, record p95 latency and error rate
 
 ## Milestone 6 — Integration, staging, demo (Nov 29 – Dec 2)
@@ -55,6 +55,13 @@ Each service's `Dockerfile` + health endpoint (see `contracts/ports-and-services
 - [ ] End-to-end test checklist with all four members (`docs/demo-script.md`)
 - [ ] Final slide deck + architecture diagram + project documentation; rehearse demo twice; record a backup video
 - [ ] Tear-down plan for AWS resources after grading (cost)
+
+## Written on 2026-10-19, not yet run against a real AWS account
+- [ ] Bootstrap state + first `terraform apply` of staging ([docs/aws-deployment.md](docs/aws-deployment.md)); set the OpenAI secret
+- [ ] GitHub variables `AWS_DEPLOY_ROLE_ARN`, `AWS_REGION`, `STAGING_URL` + environment `staging`; first green CD run
+- [ ] Jenkins running (local Docker or EC2) with the pipeline; screenshot for the report
+- [ ] Get answers to the container-convention questions sent to Ayushi, Vedanti and Changhyun
+- [ ] `REAL=1 make test-docker` once each service has code
 
 ## Team-lead recurring
 - [ ] Weekly sync (suggest Sunday): each member reports TODO progress + open questions; update `docs/timeline.md`

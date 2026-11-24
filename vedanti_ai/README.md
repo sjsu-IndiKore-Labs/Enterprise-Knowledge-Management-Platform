@@ -21,8 +21,9 @@ vedanti_ai/
     run_eval.py                  # runs resources/eval/golden_qa.jsonl, writes resources/eval/results/
     benchmarks/                  # chunking / embedding benchmark notebooks + results (Milestone 1)
   tests/
-  Dockerfile
 ```
+
+Image: `manali_devops/docker/python-service.Dockerfile`. The worker runs as a separate container (`ai-worker`) from the same image.
 
 ## Run
 ```bash

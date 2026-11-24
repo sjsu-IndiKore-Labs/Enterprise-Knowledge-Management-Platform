@@ -14,7 +14,7 @@ user can't use (based on `GET /api/v1/users/me` → `permissions`).
 | To | What |
 |---|---|
 | Everyone (demo) | The UI for every demo flow in `docs/demo-script.md` |
-| Manali | `Dockerfile` (multi-stage, `node:20-alpine`, Next standalone output), `GET /api/health`, build-time `NEXT_PUBLIC_*` vars |
+| Manali | Code that fits the DevOps image (`manali_devops/docker/node-web.Dockerfile`): `output: 'standalone'`, `GET /api/health`, API client works with empty `NEXT_PUBLIC_API_BASE_URL` (see `questions/to-changhyun/2026-10-19_from-manali_nextjs-container-requirements.md`) |
 | Vedanti / Ayushi | Feedback (thumbs up/down) wired to `POST /api/v1/chat/messages/{id}/feedback` → used in RAG evaluation |
 
 ## You CONSUME

@@ -13,12 +13,11 @@ ayushi_backend/
       auth/  user/  document/  search/  chat/  analytics/  messaging/  config/  common/
     src/main/resources/application.yml, application-local.yml
     src/test/java/...            # unit + Testcontainers (postgres pgvector, localstack)
-    Dockerfile
   audit-service/                 # :8081 consumes ekm-audit-events -> audit_logs, query_logs, knowledge_gaps
     src/main/java/com/helios/ekm/audit/
-    Dockerfile
 ```
 
+Images are built from `manali_devops/docker/java-service.Dockerfile` (no Dockerfile in this folder).
 Package root: `com.helios.ekm`. DB migrations are **not** here — they live in
 [`../contracts/database/migrations`](../contracts/database/migrations) (Flyway location configured to that folder).
 

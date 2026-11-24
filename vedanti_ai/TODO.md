@@ -18,7 +18,7 @@ measure faithfulness/relevance/recall on the golden set and decide `answered` / 
 | Ayushi | `POST /internal/v1/search`, `/internal/v1/answer`, `/internal/v1/answer/stream`, `GET /health` | `contracts/openapi/ai-service.yaml`, `contracts/streaming.md` |
 | Ayushi | `DOCUMENT_INGEST_STATUS` messages; rows in `document_chunks` | `contracts/events/document-ingest-status.schema.json`, `contracts/database/` |
 | Everyone | `AI_PROVIDER=fake` mode so others can run the stack without an OpenAI key | `.env.example` |
-| Manali | Dockerfile (`python:3.11-slim`, non-root), JSON logs, `/health` | `contracts/ports-and-services.md` |
+| Manali | Code that fits the DevOps image (`manali_devops/docker/python-service.Dockerfile`): `app.main:app`, `/health`, `python -m app.ingestion.worker`, SIGTERM handling, `POSTGRES_SSLMODE` (see `questions/to-vedanti/2026-10-19_from-manali_worker-entrypoint-and-container.md`) | `contracts/ports-and-services.md` |
 | Report | RAG evaluation numbers + chunking benchmark | `resources/eval/README.md` |
 
 ## You CONSUME

@@ -32,7 +32,13 @@ next-env.d.ts
 __pycache__/
 *.py[cod]
 .venv/
+.venv-devops/
+.ci-venv/
+reports/
 venv/
+.venv-devops/
+.ci-venv/
+reports/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -44,10 +50,13 @@ venv/
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
-.terraform.lock.hcl
 
 # Local data / logs
 logs/
 *.log
 manali_devops/localstack/volume/
 resources/eval/results/
+
+# Terraform plans / env files
+*.tfplan
+manali_devops/infra/terraform/environments/*.backend.hcl

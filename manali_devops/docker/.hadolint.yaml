@@ -1,0 +1,8 @@
+# DL3018/DL3008: we intentionally don't pin apk/apt package versions (none installed beyond base images).
+# DL3059: multiple consecutive RUN kept for readability of failure messages.
+# DL3006: base images are pinned through ARG defaults (checked by manali_devops/tests/test_dockerfiles.py).
+ignored:
+  - DL3006
+  - DL3018
+  - DL3008
+  - DL3059

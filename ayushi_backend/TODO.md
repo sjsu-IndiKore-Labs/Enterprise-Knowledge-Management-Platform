@@ -32,7 +32,7 @@ publishes ingestion jobs to SQS, consumes ingestion status, proxies search/chat 
 - [ ] `X-Request-Id` filter: read or generate, put in MDC, return in response, forward downstream
 - [ ] JSON logging (logstash-logback-encoder) with `traceId`, `userId`
 - [ ] Flyway pointed at `../contracts/database/migrations` (local) / `/contracts/database/migrations` (Docker); app boots against `make up`
-- [ ] Dockerfiles (multi-stage, `eclipse-temurin:21-jre`, non-root user, `HEALTHCHECK` on `/actuator/health`) — coordinate with Manali
+- [ ] Container conventions so the DevOps Dockerfile template works (`manali_devops/docker/java-service.Dockerfile`, no own Dockerfile needed): `PORT` env, Flyway path, `sslmode=${POSTGRES_SSLMODE}` — see `questions/to-ayushi/2026-10-19_from-manali_container-and-db-conventions.md`
 
 ## Milestone 2 — Ingestion (Oct 12 – Oct 25)
 - [ ] `POST /api/v1/documents` multipart upload: validate type (PDF/DOCX by **magic bytes**, not just extension) and size ≤ 25 MB → 415/413

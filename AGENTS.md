@@ -69,7 +69,7 @@ resources/               ← sample corpus (PDF/DOCX), seed users, RAG eval set,
 ayushi_backend/          ← Spring Boot: core-api + audit-service
 changhyun_frontend/      ← Next.js + TypeScript web portal
 vedanti_ai/              ← Python FastAPI ai-service: ingestion worker + retrieval + answer synthesis
-manali_devops/           ← Dockerfiles helpers, LocalStack init, Jenkins, AWS infra (Terraform), load tests
+manali_devops/           ← Dockerfile templates for ALL services, LocalStack init, Terraform (AWS ECS), CI/CD scripts, Jenkins, devops tests & runbooks
 docker-compose.yml       ← local stack (owned by Manali)
 .env.example             ← every env var name used by any service
 Makefile                 ← common commands (make help)
