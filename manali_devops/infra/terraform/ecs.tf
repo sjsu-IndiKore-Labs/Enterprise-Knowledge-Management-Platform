@@ -192,12 +192,12 @@ resource "aws_appautoscaling_target" "this" {
 }
 
 resource "aws_appautoscaling_policy" "cpu" {
-  for_each           = aws_appautoscaling_target.this
+  for_each           = { for k, s in var.services : k => s if s.max_count > s.min_count }
   name               = "${local.name}-${each.key}-cpu"
   policy_type        = "TargetTrackingScaling"
-  service_namespace  = each.value.service_namespace
-  resource_id        = each.value.resource_id
-  scalable_dimension = each.value.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.this[each.key].service_namespace
+  resource_id        = aws_appautoscaling_target.this[each.key].resource_id
+  scalable_dimension = aws_appautoscaling_target.this[each.key].scalable_dimension
   target_tracking_scaling_policy_configuration {
     target_value       = 60
     scale_in_cooldown  = 120

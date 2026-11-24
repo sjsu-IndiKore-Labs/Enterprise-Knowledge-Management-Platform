@@ -19,6 +19,16 @@ variable "aws_region" {
   default = "us-west-2"
 }
 
+variable "documents_bucket_name" {
+  description = "Optional existing S3 documents bucket name. Leave empty to use the account-scoped default."
+  type        = string
+  default     = ""
+  validation {
+    condition     = var.documents_bucket_name == "" || can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.documents_bucket_name))
+    error_message = "documents_bucket_name must be a valid S3 bucket name when provided."
+  }
+}
+
 variable "vpc_cidr" {
   type    = string
   default = "10.40.0.0/16"

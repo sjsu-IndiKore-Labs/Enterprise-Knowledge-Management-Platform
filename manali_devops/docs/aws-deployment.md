@@ -18,7 +18,17 @@ terraform init && terraform apply          # creates ekm-tfstate-<account> bucke
 cd manali_devops/infra/terraform/environments
 cp staging.backend.hcl.example staging.backend.hcl   # put the bucket name from step 1
 cp staging.tfvars.example staging.tfvars             # alarm_email, budget, optional certificate_arn/app_domain
+# If an existing documents bucket is being reused, set documents_bucket_name in staging.tfvars.
 cd ../../../.. && make tf-init
+```
+
+If `documents_bucket_name` points to an existing bucket, import that bucket before the first full
+apply so Terraform manages it instead of trying to create a duplicate:
+
+```bash
+terraform -chdir=manali_devops/infra/terraform import \
+  -var-file=environments/staging.tfvars \
+  aws_s3_bucket.documents ekm-documents-staging
 ```
 
 ## 3. Create ECR, push the first images, then apply everything

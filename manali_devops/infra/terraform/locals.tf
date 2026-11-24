@@ -17,7 +17,7 @@ locals {
   }
 
   # Resource names exactly as in contracts/ports-and-services.md
-  documents_bucket = "${var.project}-documents-${var.environment}-${local.account_id}"
+  documents_bucket = var.documents_bucket_name != "" ? var.documents_bucket_name : "${var.project}-documents-${var.environment}-${local.account_id}"
   queues = {
     document-ingest = { env = "SQS_DOCUMENT_INGEST_QUEUE", visibility_timeout = 300 }
     document-status = { env = "SQS_DOCUMENT_STATUS_QUEUE", visibility_timeout = 60 }

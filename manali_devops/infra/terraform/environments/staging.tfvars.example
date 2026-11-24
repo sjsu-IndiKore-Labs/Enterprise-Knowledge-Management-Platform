@@ -1,6 +1,7 @@
 # Copy to staging.tfvars (git-ignored) and adjust.
 environment        = "staging"
 aws_region         = "us-west-2"
+documents_bucket_name = "ekm-documents-staging"
 alarm_email        = "you@example.com"
 monthly_budget_usd = 150   # ~$130/month if left running 24/7; use `make aws-sleep` when idle
 use_nat_gateway    = false

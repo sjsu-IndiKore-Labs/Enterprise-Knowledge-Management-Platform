@@ -46,12 +46,12 @@ resource "aws_cloudwatch_metric_alarm" "api_latency_p95" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "unhealthy_targets" {
-  for_each            = aws_lb_target_group.this
+  for_each            = toset(local.public_services)
   alarm_name          = "${local.name}-${each.key}-unhealthy-targets"
   alarm_description   = "${each.key} has unhealthy targets behind the ALB"
   namespace           = "AWS/ApplicationELB"
   metric_name         = "UnHealthyHostCount"
-  dimensions          = { LoadBalancer = aws_lb.this.arn_suffix, TargetGroup = each.value.arn_suffix }
+  dimensions          = { LoadBalancer = aws_lb.this.arn_suffix, TargetGroup = aws_lb_target_group.this[each.key].arn_suffix }
   statistic           = "Maximum"
   period              = 60
   evaluation_periods  = 3
@@ -95,12 +95,12 @@ resource "aws_cloudwatch_metric_alarm" "ecs_memory" {
 
 # ---------------------------------------------------------------- SQS
 resource "aws_cloudwatch_metric_alarm" "dlq_not_empty" {
-  for_each            = aws_sqs_queue.dlq
+  for_each            = local.queues
   alarm_name          = "${local.name}-${each.key}-dlq-not-empty"
-  alarm_description   = "Messages failed 3 times and landed in ${each.value.name}"
+  alarm_description   = "Messages failed 3 times and landed in ${aws_sqs_queue.dlq[each.key].name}"
   namespace           = "AWS/SQS"
   metric_name         = "ApproximateNumberOfMessagesVisible"
-  dimensions          = { QueueName = each.value.name }
+  dimensions          = { QueueName = aws_sqs_queue.dlq[each.key].name }
   statistic           = "Maximum"
   period              = 300
   evaluation_periods  = 1
@@ -155,9 +155,9 @@ resource "aws_cloudwatch_metric_alarm" "rds_storage" {
 
 # ---------------------------------------------------------------- application errors from JSON logs
 resource "aws_cloudwatch_log_metric_filter" "errors" {
-  for_each       = aws_cloudwatch_log_group.service
+  for_each       = var.services
   name           = "${local.name}-${each.key}-errors"
-  log_group_name = each.value.name
+  log_group_name = aws_cloudwatch_log_group.service[each.key].name
   pattern        = "{ $.level = \"ERROR\" }"
   metric_transformation {
     name          = "ErrorLogCount"
