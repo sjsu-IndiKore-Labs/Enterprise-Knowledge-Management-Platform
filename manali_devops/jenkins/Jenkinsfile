@@ -36,8 +36,8 @@ pipeline {
     stage('Build & test services') {
       parallel {
         stage('backend') {
-          when { expression { fileExists('ayushi_backend/gradlew') } }
-          steps { dir('ayushi_backend') { sh './gradlew --no-daemon build' } }
+          when { expression { fileExists('ayushi_backend/pom.xml') } }
+          steps { dir('ayushi_backend') { sh 'bash ./mvnw clean package -DskipTests' } }
         }
         stage('frontend') {
           when { expression { fileExists('changhyun_frontend/package.json') } }

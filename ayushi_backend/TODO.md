@@ -26,7 +26,7 @@ publishes ingestion jobs to SQS, consumes ingestion status, proxies search/chat 
 
 ## Milestone 1 — catch-up (was due Oct 11) — finish by **Oct 21**
 - [ ] Review `contracts/openapi/core-api.yaml`, `contracts/auth.md`, `contracts/database/migrations/V1__init_schema.sql`; acknowledge `questions/to-all/2026-10-19_from-manali_confirm-architecture-and-contracts-v1.md`
-- [ ] Gradle multi-project skeleton (`common`, `core-api`, `audit-service`), Spring Boot 3.3+, Java 21, springdoc-openapi, Actuator, Flyway, Spring Data JPA, AWS SDK v2 (S3, SQS), jjwt or Spring Security OAuth2 resource server (HS256)
+- [ ] Maven multi-module skeleton (`common`, `core-api`, `audit-service`), Spring Boot 3.4+, Java 21, springdoc-openapi, Actuator, Flyway, Spring Data JPA, AWS SDK v2 (S3, SQS), jjwt or Spring Security OAuth2 resource server (HS256)
 - [ ] Global JSON config: camelCase, ISO-8601 UTC dates (`WRITE_DATES_AS_TIMESTAMPS=false`), ignore unknown properties
 - [ ] Global `@RestControllerAdvice` producing the shared error body (`code, message, details, traceId, timestamp`)
 - [ ] `X-Request-Id` filter: read or generate, put in MDC, return in response, forward downstream

@@ -8,7 +8,7 @@ TF_ENV ?= staging
 TAG ?= $(shell git rev-parse HEAD)
 AJV := npx --yes -p ajv-cli@5 -p ajv-formats@3 ajv validate --spec=draft2020 --strict=false -c ajv-formats
 
-.PHONY: help env up up-apps down reset logs ps seed migrate-raw psql mock-core-api mock-ai-service mocks lint-contracts \
+.PHONY: help env validate-local validate-localstack up up-apps down reset logs ps seed migrate-raw psql mock-core-api mock-ai-service mocks lint-contracts \
         corpus ingest-corpus questions send-test-ingest test-devops test-integration test-docker smoke \
         tf-init tf-fmt tf-validate tf-test tf-plan tf-apply deploy aws-sleep aws-wake
 
@@ -17,6 +17,12 @@ help: ## Show this help
 
 env: ## Create .env from .env.example if missing
 	@test -f .env || (cp .env.example .env && echo "created .env — fill OPENAI_API_KEY or set AI_PROVIDER=fake")
+
+validate-local: ## Validate Docker Compose and required local integration files
+	@bash manali_devops/scripts/validate-local.sh
+
+validate-localstack: ## Validate LocalStack S3, CORS, SQS queues, DLQs, and policies
+	$(COMPOSE) exec -T localstack bash -s < manali_devops/localstack/validate-aws.sh
 
 up: env ## Start postgres+pgvector and localstack (S3, SQS)
 	$(COMPOSE) up -d postgres localstack

@@ -34,3 +34,59 @@ pnpm gen:api                 # openapi-typescript ../contracts/openapi/core-api.
 make mock-core-api           # (repo root) Prism mock on :4010 — develop without the backend
 NEXT_PUBLIC_API_BASE_URL=http://localhost:4010 pnpm dev
 ```
+
+## Developing against the mock server
+
+`pnpm mock` starts a small stateful stand-in for core-api on <http://localhost:4010> (same port as the Prism mock; `.env.example` already points there). Unlike Prism it keeps state, so the screens that depend on behavior can be checked:
+
+- upload goes `QUEUED` → `PROCESSING` (after ~4 s) → `INDEXED` (after ~9 s); a file whose name contains `fail` ends `FAILED` with an error message
+- roles from the seed users (all use password `Password123!`): `harper.hrmgr@helios.example.com` (MANAGER, HR), `hannah.hr@…` (EMPLOYEE, HR), `alice.admin@…` (ADMIN), `ethan.engmgr@…` (MANAGER, ENGINEERING)
+- other departments' documents return 404, EMPLOYEE upload returns 403, a MANAGER uploading to another department returns 403
+- files over 25 MB return 413, other file types 415, missing fields 400, a search containing `trigger502` returns 502
+- `curl -X POST localhost:4010/__mock/expire-tokens` makes the next call return 401 (session-expiry check); `POST /__mock/reset` restores the seed data
+- search and citation preview use the real sample corpus in `resources/corpus` when it is next to the repo (otherwise four built-in documents)
+- chat: `POST /chat/stream` sends the events of `contracts/streaming.md` (`meta`, a keep-alive comment, `token`s, `citations`, `done`). The answer is assembled from the best-matching chunks with `[n]` markers, no LLM involved. A question with no match gets the exact "I couldn't find this…" sentence with `answered: false`. A message containing `triggererror` breaks the stream after a few tokens, one containing `trigger502` returns 502. `MOCK_TOKEN_MS=80 pnpm mock` slows the stream down so it is easy to watch
+- conversations and feedback are kept per user (another user gets 404)
+
+`pnpm mock:test` checks the mock itself (30 checks, no dependencies). The mock follows the contract, not Ayushi's current controllers, so it is a development aid and not proof that the real backend works.
+
+### Trying the real core-api (partial, dev only)
+
+core-api does not have login, `/users/me` or `/chat/stream` yet, and there is no ai-service, so only the document screens can run against it
+(list, upload, versions, download). `pnpm mock:proxy` listens on :4010 **instead of** `pnpm mock`: it fakes `POST /auth/login` and `GET /users/me`
+(seed users, same password) and forwards every other call unchanged to the real core-api (`REAL_API`, default `http://localhost:8080`).
+Search and chat will answer 502/500 until the ai-service and the stream exist. The real core-api does not check tokens yet, so this is **not** a security test.
+
+```bash
+make up && make seed                                   # repo root: postgres + localstack, seed users
+# run core-api from the backend branch (Java 21), with the variables of .env, on :8080
+cd changhyun_frontend && pnpm mock:proxy && pnpm dev   # then sign in as harper.hrmgr@helios.example.com
+```
+
+### Manual check of M2 and M3 (about 10 minutes)
+
+Run `pnpm mock` in one terminal and `pnpm dev` in another, then open <http://localhost:3000>.
+
+1. **Login:** wrong password shows "Invalid email or password". Sign in as `harper.hrmgr@helios.example.com`. Name, role and department show in the top bar. Reload the page: you stay signed in.
+2. **Role rules:** as `hannah.hr@…` (EMPLOYEE) there is no Upload link and `/documents/upload` explains who can upload. As Harper (MANAGER) the department is fixed to Human Resources. As `alice.admin@…` any department can be chosen.
+3. **Upload validation:** a `.txt` file, an empty file and a file over 25 MB each show a message and are not accepted. Dropping two files says "Upload one file at a time".
+4. **Upload and status:** upload a PDF. The progress bar fills, then the tracker steps Uploaded → Queued → Processing → Indexed without a reload. Upload a file named `will-fail.pdf`: the tracker ends on Failed with the reason.
+5. **Library:** more than one page of documents for ADMIN, filters (department, category, status, text) and paging work. A just-uploaded document updates its badge in the list on its own. A failed one shows its tooltip.
+6. **Detail:** versions list, "Upload new version" adds version 2 and it processes. Download opens a PDF. Opening a document from another department's URL shows "Document not found".
+7. **Session expiry:** run the `expire-tokens` command above, then click anything. You land on `/login` with "Your session expired", and after signing in you return to the page you were on.
+8. **Search:** "how many vacation days do I get?" ranks the PTO policy first. Mode `Keyword` with "vacation" finds nothing; `Semantic` finds the PTO policy. Matches are highlighted. A search for `trigger502` shows the "temporarily unavailable" message.
+9. **Citation preview:** "Preview passage" opens the panel with the full passage and page; Esc closes it; "Open at page N" opens the PDF at that page.
+
+### Manual check of M4 (about 10 minutes)
+
+Run `MOCK_TOKEN_MS=60 pnpm mock` and `pnpm dev`, sign in as `hannah.hr@helios.example.com`. You land on **Assistant**.
+
+10. **Ask and stream:** click a suggested question. "Searching your documents…" shows first, the answer then appears word by word with a caret. When it ends, grey numbers become blue citation badges, and a **Sources** list appears (PDF sources show the page, DOCX sources the section).
+11. **Citations:** click badge `1` or a source chip. The side panel shows the passage; "Open at page N" opens the PDF. Esc closes the panel.
+12. **Stop and retry:** ask something, press **Stop** while it streams: the text stays and says "Stopped". "Ask again" asks the same question again. Ask `how many PTO days triggererror`: the stream breaks with a red message and "Try again". Ask `trigger502`: a "temporarily unavailable" message.
+13. **Not found:** ask `quantum teleportation zebra`. A yellow "I couldn't find this in the documents you have access to." box offers Search documents and Browse documents. Thumbs up and down work on it too.
+14. **Feedback:** 👍 on an answer turns blue and stays after you reload the conversation from the list (click it in the sidebar). Switching to 👎 changes it.
+15. **History:** after the first answer the conversation appears in the sidebar. Ask a follow-up: it stays in the same conversation. "New chat" clears the thread. Delete asks "Delete this chat?" and removes it.
+16. **Keyboard:** Enter sends, Shift+Enter adds a line. With a Korean or Japanese input method, the Enter that confirms a syllable must **not** send.
+17. **Permissions:** as `hannah.hr@…` there is no Upload link; as `harper.hrmgr@…` there is. Sign out and in as another user: the history of the previous user is not visible.
+
