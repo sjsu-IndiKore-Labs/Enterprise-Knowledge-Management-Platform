@@ -19,6 +19,21 @@ These documents describe this project. They are not generic enterprise policies 
 | [audit-service.md](audit-service.md) | How are audit events processed? |
 | [ai-service.md](ai-service.md) | How does search and answer generation work? |
 | [ai-worker.md](ai-worker.md) | How are documents ingested and indexed? |
+| [enterprise-portfolio.md](enterprise-portfolio.md) | Which Helios applications are managed? |
+
+## Managed enterprise applications
+
+The EKM Knowledge Portal is the platform. The following application packs represent the synthetic
+Helios enterprise portfolio managed through EKM:
+
+| Application | Directory | Primary domain |
+|---|---|---|
+| PeopleHub | [peoplehub/](peoplehub/) | HR and employee management |
+| ServiceDesk | [servicedesk/](servicedesk/) | IT service management |
+| ProcureFlow | [procureflow/](procureflow/) | Procurement and finance |
+
+These application packs are **Helios Demo Enterprise Data**. They are intentionally synthetic and do
+not describe real production systems, employees, vendors, or credentials.
 
 ## Grounding rules
 
