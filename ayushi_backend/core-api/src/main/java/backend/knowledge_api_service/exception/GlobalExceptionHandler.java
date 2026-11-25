@@ -5,10 +5,13 @@ import com.helios.ekm.common.dto.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.time.Instant;
@@ -42,6 +45,21 @@ public class GlobalExceptionHandler {
                 .code("VALIDATION_ERROR")
                 .message("Request validation failed")
                 .details(fieldErrors)
+                .traceId(RequestIdFilter.getCurrentTraceId())
+                .timestamp(Instant.now())
+                .build();
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    @ExceptionHandler({
+            MethodArgumentTypeMismatchException.class,
+            HttpMessageNotReadableException.class,
+            MissingServletRequestParameterException.class
+    })
+    public ResponseEntity<ErrorResponse> handleRequestBindingExceptions(Exception ex) {
+        ErrorResponse body = ErrorResponse.builder()
+                .code("VALIDATION_ERROR")
+                .message(ex.getMessage() != null ? ex.getMessage() : "Invalid request parameter or payload")
                 .traceId(RequestIdFilter.getCurrentTraceId())
                 .timestamp(Instant.now())
                 .build();

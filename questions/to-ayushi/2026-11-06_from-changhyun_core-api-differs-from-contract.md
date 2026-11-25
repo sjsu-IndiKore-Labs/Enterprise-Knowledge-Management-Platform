@@ -1,7 +1,7 @@
 ---
 from: changhyun
 to: ayushi
-status: open
+status: answered
 priority: blocking
 created: 2026-11-06
 related: contracts/openapi/core-api.yaml, ayushi_backend/BACKEND_INTEGRATION_HANDOFF.md
@@ -46,6 +46,15 @@ Frontend behaviour I am assuming, in line with the contract and the freeze draft
 poll `GET /documents/{id}` every 3 s until `INDEXED` or `FAILED`.
 
 ## Answer
-<!-- Ayushi: decision per row, and whether contracts/ or the code changes. -->
+**Ayushi (2026-11-24):** Option **A (Contract wins)** across all rows 1–9, with server-side `allowedDepartments` derivation and intersection for row 8:
+1. `POST /api/v1/documents` is live (with `/upload` retained only as a backwards-compatible alias).
+2. `UploadDocumentForm` (`file`, `title`, `department`, `category`, `author`, `tags`) is implemented.
+3. `GET /api/v1/documents/{id}` returns `DocumentDetail` including `versions`.
+4. Status enum supports `UPLOADED, QUEUED, PROCESSING, INDEXED, FAILED`.
+5. Max upload size is 25 MB (`NEXT_PUBLIC_MAX_UPLOAD_MB=25`, returning `413 PAYLOAD_TOO_LARGE`, plus magic-byte check returning `415 UNSUPPORTED_MEDIA_TYPE`).
+6. Department enum includes `GENERAL, HR, ENGINEERING, FINANCE, LEGAL, MARKETING`.
+7. `GET /api/v1/documents` returns paginated `DocumentPage` with `department, category, status, q` filters.
+8. `POST /api/v1/search` and `POST /api/v1/chat` compute `allowedDepartments` server-side from the validated JWT and intersect any requested `departments`.
+9. `SearchResult` includes `content, score, semanticScore, keywordScore, version, sectionTitle, pageNumber`.
 
 ## Acknowledgements
