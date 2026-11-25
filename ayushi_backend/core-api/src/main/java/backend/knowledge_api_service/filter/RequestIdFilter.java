@@ -27,12 +27,12 @@ public class RequestIdFilter extends OncePerRequestFilter {
     public static final String HEADER_REQUEST_ID = "X-Request-Id";
     public static final String MDC_TRACE_ID = "traceId";
     public static final String MDC_USER_ID = "userId";
-    public static final UUID DEFAULT_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    public static final UUID DEFAULT_USER_ID = UUID.fromString("11111111-1111-4111-8111-000000000001");
 
     private static final ThreadLocal<CallerInfo> CALLER_HOLDER = new ThreadLocal<>();
 
     @Value("${jwt.secret:local-dev-jwt-secret-change-me-must-be-at-least-32-bytes}")
-    private String jwtSecret;
+    private String jwtSecret = "local-dev-jwt-secret-change-me-must-be-at-least-32-bytes";
 
     @Override
     protected void doFilterInternal(
@@ -70,17 +70,31 @@ public class RequestIdFilter extends OncePerRequestFilter {
         if (caller != null) {
             return caller;
         }
-        return new CallerInfo(DEFAULT_USER_ID, "ADMIN", Department.GENERAL, List.of(Department.values()));
+        return new CallerInfo(
+                DEFAULT_USER_ID,
+                "alice.admin@helios.example.com",
+                "Alice Admin",
+                "ADMIN",
+                Department.GENERAL,
+                List.of(Department.values()),
+                true);
+    }
+
+    public static void setCurrentCaller(CallerInfo caller) {
+        CALLER_HOLDER.set(caller);
+    }
+
+    public static void clearCurrentCaller() {
+        CALLER_HOLDER.remove();
     }
 
     private CallerInfo resolveCaller(HttpServletRequest request) {
-        // 1. Check Authorization: Bearer <jwt>
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7).trim();
-            try {
-                byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
-                if (keyBytes.length >= 32) {
+            byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
+            if (keyBytes.length >= 32) {
+                try {
                     SecretKey key = Keys.hmacShaKeyFor(keyBytes);
                     Claims claims = Jwts.parser()
                             .verifyWith(key)
@@ -88,36 +102,75 @@ public class RequestIdFilter extends OncePerRequestFilter {
                             .parseSignedClaims(token)
                             .getPayload();
                     UUID userId = parseUuidOrDefault(claims.getSubject(), DEFAULT_USER_ID);
+                    String email = claims.get("email", String.class);
+                    String name = claims.get("name", String.class);
                     String role = claims.get("role", String.class);
                     String deptStr = claims.get("department", String.class);
                     if (deptStr == null) {
                         deptStr = claims.get("dept", String.class);
                     }
+                    String effectiveRole = role != null ? role.toUpperCase(Locale.ROOT) : "EMPLOYEE";
                     Department dept = parseDepartmentOrDefault(deptStr, Department.GENERAL);
-                    return new CallerInfo(userId, role != null ? role : "EMPLOYEE", dept, computeAllowedDepartments(role, dept));
+                    return new CallerInfo(
+                            userId,
+                            email != null ? email : "user@helios.example.com",
+                            name != null ? name : "Enterprise User",
+                            effectiveRole,
+                            dept,
+                            computeAllowedDepartments(effectiveRole, dept),
+                            true);
+                } catch (Exception e) {
+                    return new CallerInfo(
+                            DEFAULT_USER_ID,
+                            "unauthenticated",
+                            "Unauthenticated",
+                            "EMPLOYEE",
+                            Department.GENERAL,
+                            List.of(Department.GENERAL),
+                            false);
                 }
-            } catch (Exception ignored) {
-                // Fallback to header/dev caller until Milestone 4 strict security enforcement
             }
         }
 
-        // 2. Check optional X-User-* headers for testing / development
+        // Check optional X-User-* headers for dev/testing
         UUID userId = parseUuidOrDefault(request.getHeader("X-User-Id"), DEFAULT_USER_ID);
         String role = request.getHeader("X-User-Role");
         String deptHeader = request.getHeader("X-User-Department");
-        if (role != null || deptHeader != null) {
+        String emailHeader = request.getHeader("X-User-Email");
+        if (role != null || deptHeader != null || emailHeader != null) {
             String effectiveRole = role != null ? role.toUpperCase(Locale.ROOT) : "EMPLOYEE";
             Department dept = parseDepartmentOrDefault(deptHeader, Department.GENERAL);
-            return new CallerInfo(userId, effectiveRole, dept, computeAllowedDepartments(effectiveRole, dept));
+            return new CallerInfo(
+                    userId,
+                    emailHeader != null ? emailHeader : "dev@helios.example.com",
+                    "Dev User",
+                    effectiveRole,
+                    dept,
+                    computeAllowedDepartments(effectiveRole, dept),
+                    true);
         }
 
-        // Default unauthenticated dev caller (ADMIN access across all departments prior to Milestone 4)
-        return new CallerInfo(userId, "ADMIN", Department.GENERAL, List.of(Department.values()));
+        // Default dev admin caller when no auth header is sent
+        return new CallerInfo(
+                userId,
+                "alice.admin@helios.example.com",
+                "Alice Admin",
+                "ADMIN",
+                Department.GENERAL,
+                List.of(Department.values()),
+                false);
     }
 
     public static List<Department> computeAllowedDepartments(String role, Department userDepartment) {
         if ("ADMIN".equalsIgnoreCase(role)) {
-            return List.of(Department.values());
+            return List.of(
+                    Department.GENERAL,
+                    Department.HR,
+                    Department.ENGINEERING,
+                    Department.FINANCE,
+                    Department.LEGAL,
+                    Department.MARKETING,
+                    Department.OPERATIONS);
         }
         Set<Department> allowed = new LinkedHashSet<>();
         if (userDepartment != null) {
@@ -151,9 +204,15 @@ public class RequestIdFilter extends OncePerRequestFilter {
 
     public record CallerInfo(
             UUID userId,
+            String email,
+            String name,
             String role,
             Department department,
-            List<Department> allowedDepartments
-    ) {}
+            List<Department> allowedDepartments,
+            boolean authenticated
+    ) {
+        public CallerInfo(UUID userId, String role, Department department, List<Department> allowedDepartments) {
+            this(userId, "user@helios.example.com", "User", role, department, allowedDepartments, true);
+        }
+    }
 }
-

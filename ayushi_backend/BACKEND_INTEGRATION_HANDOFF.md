@@ -1,21 +1,22 @@
-# Backend Integration & Contract Hand-Off (Milestones 1, 2 & 3)
+# Backend Integration & Contract Hand-Off (Milestones 1–6 Complete)
 
 **Author:** Ayushi (Team Leader, Backend & Security Lead)  
-**Date:** November 6, 2026  
+**Date:** November 22, 2026  
 **Target Audience:** Changhyun (Frontend), Vedanti (AI/RAG), Manali (DevOps/Cloud)  
-**Git Branch:** `ayushi/maven-backend-setup`  
-**Pull Request:** [PR # on GitHub (ayushi/maven-backend-setup into develop)](https://github.com/sjsu-IndiKore-Labs/Enterprise-Knowledge-Management-Platform/pull/new/ayushi/maven-backend-setup)  
+**Git Branch:** `ayushi/m1-m3-ingestion-search-chat`  
+**Pull Request:** [PR # on GitHub (ayushi/m1-m3-ingestion-search-chat into develop)](https://github.com/sjsu-IndiKore-Labs/Enterprise-Knowledge-Management-Platform/pull/new/ayushi/m1-m3-ingestion-search-chat)  
 
 ---
 
 ## Executive Summary
 
-The **Milestone 1 backend architecture**, **Milestone 2 document ingestion & S3/SQS pipeline**, and **Milestone 3 hybrid search, RAG chat & citation endpoints** are officially built, tested, and ready for integration.
+All **Milestones 1 through 6** for Backend & Security (`core-api` and `audit-service`) are built, tested (`15/15` automated test suites passing, including the 198-cell RBAC leakage matrix), and ready for integration and final demonstration.
 
 - **Build System:** Standard **Apache Maven multi-module (`common`, `core-api`, `audit-service`)** on Java 21 / Spring Boot 3.4.1.
-- **Database:** PostgreSQL initialized with automated **Flyway migrations** (`V1__init_schema.sql`, `V2__contract_schema_m1_m3.sql`).
-- **Interactive Documentation:** Live Swagger UI / OpenAPI 3.0 spec is up and serving live responses.
-- **Requirement Freeze:** Published at [`requirement-freeze/ayushi_backend_requirement_freeze.md`](../requirement-freeze/ayushi_backend_requirement_freeze.md).
+- **Database:** PostgreSQL initialized with automated **Flyway migrations** (`V1__init_schema.sql`, `V2__contract_schema_m1_m3.sql`, `V3__m4_m5_auth_audit_analytics.sql`).
+- **Security & RBAC:** BCrypt login (`POST /api/v1/auth/login`), HS256 JWT issuance/validation, `/api/v1/users/me`, strict department isolation (`404` + `ACCESS_DENIED`), per-user chat rate limiting (`429`), and SSE streaming (`POST /api/v1/chat/stream`).
+- **Audit & Analytics:** Asynchronous SQS `AUDIT_EVENT` producer + `audit-service` idempotent consumer populating `audit_logs`, `query_logs`, and `knowledge_gaps`, plus all `/api/v1/admin/**` analytics and user management endpoints.
+- **Interactive Documentation & Demo Assets:** Live Swagger UI (`/swagger-ui.html`), OWASP security checklist ([`SECURITY_CHECKLIST.md`](SECURITY_CHECKLIST.md)), demo HTTP collection ([`demo-requests.http`](demo-requests.http)), and requirement freeze ([`requirement-freeze/ayushi_backend_requirement_freeze.md`](../requirement-freeze/ayushi_backend_requirement_freeze.md)).
 
 ---
 

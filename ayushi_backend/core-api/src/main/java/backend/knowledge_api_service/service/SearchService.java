@@ -4,29 +4,39 @@ import backend.knowledge_api_service.dto.request.SearchRequest;
 import backend.knowledge_api_service.dto.response.SearchResponse;
 import backend.knowledge_api_service.dto.response.SearchResultItem;
 import backend.knowledge_api_service.filter.RequestIdFilter;
+import backend.knowledge_api_service.model.AuditAction;
 import backend.knowledge_api_service.model.Department;
 import backend.knowledge_api_service.model.SearchMode;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class SearchService {
 
     private final AiServiceClient aiServiceClient;
+    private AuditEventPublisher auditEventPublisher;
+
+    public SearchService(AiServiceClient aiServiceClient) {
+        this.aiServiceClient = aiServiceClient;
+    }
+
+    @Autowired(required = false)
+    public void setAuditEventPublisher(AuditEventPublisher auditEventPublisher) {
+        this.auditEventPublisher = auditEventPublisher;
+    }
 
     public SearchResponse search(SearchRequest request) {
         RequestIdFilter.CallerInfo caller = RequestIdFilter.getCurrentCaller();
         List<Department> callerAllowed = caller.allowedDepartments();
 
-        // Intersect requested departments (or legacy authorizedDepartments) with caller's allowedDepartments
         List<Department> requestedDepts = request.getDepartments() != null && !request.getDepartments().isEmpty()
                 ? request.getDepartments()
                 : request.getAuthorizedDepartments();
@@ -70,7 +80,6 @@ public class SearchService {
                 ? aiResponse.getResults()
                 : Collections.emptyList();
 
-        // Normalize backwards-compatible fields (snippet <-> content, similarityScore <-> score)
         for (SearchResultItem item : results) {
             if (item.getContent() == null && item.getSnippet() != null) {
                 item.setContent(item.getSnippet());
@@ -87,6 +96,18 @@ public class SearchService {
             if (item.getVersion() == null) {
                 item.setVersion(1);
             }
+        }
+
+        if (auditEventPublisher != null) {
+            auditEventPublisher.publish(
+                    AuditAction.SEARCH_PERFORMED,
+                    "QUERY",
+                    null,
+                    Map.of(
+                            "queryText", request.getQuery(),
+                            "mode", mode.name(),
+                            "resultCount", results.size(),
+                            "allowedDepartments", effectiveDepartments.stream().map(Enum::name).collect(Collectors.toList())));
         }
 
         return SearchResponse.builder()

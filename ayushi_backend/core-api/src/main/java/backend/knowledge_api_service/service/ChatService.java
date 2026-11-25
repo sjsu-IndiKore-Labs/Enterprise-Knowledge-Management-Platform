@@ -1,73 +1,78 @@
 package backend.knowledge_api_service.service;
 
 import backend.knowledge_api_service.dto.request.ChatRequest;
+import backend.knowledge_api_service.dto.request.FeedbackRequest;
 import backend.knowledge_api_service.dto.response.*;
 import backend.knowledge_api_service.entity.ChatMessageEntity;
 import backend.knowledge_api_service.entity.Conversation;
 import backend.knowledge_api_service.exception.ResourceNotFoundException;
 import backend.knowledge_api_service.filter.RequestIdFilter;
+import backend.knowledge_api_service.model.AuditAction;
 import backend.knowledge_api_service.model.Department;
 import backend.knowledge_api_service.model.MessageRole;
 import backend.knowledge_api_service.repository.ChatMessageRepository;
 import backend.knowledge_api_service.repository.ConversationRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ChatService {
+
+    public static final String NOT_FOUND_ANSWER = "I couldn't find this in the documents you have access to.";
 
     private final ConversationRepository conversationRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final AiServiceClient aiServiceClient;
     private final ObjectMapper objectMapper;
+    private ChatRateLimiter chatRateLimiter;
+    private AuditEventPublisher auditEventPublisher;
+
+    public ChatService(
+            ConversationRepository conversationRepository,
+            ChatMessageRepository chatMessageRepository,
+            AiServiceClient aiServiceClient,
+            ObjectMapper objectMapper) {
+        this.conversationRepository = conversationRepository;
+        this.chatMessageRepository = chatMessageRepository;
+        this.aiServiceClient = aiServiceClient;
+        this.objectMapper = objectMapper;
+    }
+
+    @Autowired(required = false)
+    public void setChatRateLimiter(ChatRateLimiter chatRateLimiter) {
+        this.chatRateLimiter = chatRateLimiter;
+    }
+
+    @Autowired(required = false)
+    public void setAuditEventPublisher(AuditEventPublisher auditEventPublisher) {
+        this.auditEventPublisher = auditEventPublisher;
+    }
 
     @Transactional
     public ChatResponse chat(ChatRequest request) {
         RequestIdFilter.CallerInfo caller = RequestIdFilter.getCurrentCaller();
-        UUID userId = caller.userId();
-
-        // 1. Load or create Conversation
-        Conversation conversation;
-        if (request.getConversationId() != null) {
-            conversation = conversationRepository.findByIdAndUserId(request.getConversationId(), userId)
-                    .orElseThrow(() -> new ResourceNotFoundException("CONVERSATION_NOT_FOUND",
-                            "Conversation not found with ID: " + request.getConversationId()));
-        } else {
-            String title = truncateTitle(request.getMessage());
-            conversation = Conversation.builder()
-                    .userId(userId)
-                    .title(title)
-                    .build();
-            conversation = conversationRepository.save(conversation);
+        if (chatRateLimiter != null) {
+            chatRateLimiter.checkRateLimit(caller.userId());
         }
 
-        // 2. Fetch last 6 messages as history (in chronological order) before adding the new USER message
-        List<ChatMessageEntity> recentDesc = chatMessageRepository
-                .findTop6ByConversationIdOrderByCreatedAtDesc(conversation.getId());
-        List<ChatMessageEntity> recentChronological = new ArrayList<>(recentDesc);
-        Collections.reverse(recentChronological);
+        UUID userId = caller.userId();
+        Conversation conversation = loadOrCreateConversation(request, userId);
+        List<AiServiceClient.HistoryMessage> history = loadLast6HistoryMessages(conversation.getId());
 
-        List<AiServiceClient.HistoryMessage> history = recentChronological.stream()
-                .map(m -> AiServiceClient.HistoryMessage.builder()
-                        .role(m.getRole().name())
-                        .content(m.getContent())
-                        .build())
-                .collect(Collectors.toList());
-
-        // 3. Persist USER message
         ChatMessageEntity userMsg = ChatMessageEntity.builder()
                 .conversationId(conversation.getId())
                 .role(MessageRole.USER)
@@ -76,47 +81,57 @@ public class ChatService {
                 .build();
         chatMessageRepository.save(userMsg);
 
-        // 4. Compute effective allowedDepartments (intersect request.departments with caller's allowedDepartments)
-        List<Department> callerAllowed = caller.allowedDepartments();
-        List<Department> effectiveDepartments;
-        if (request.getDepartments() != null && !request.getDepartments().isEmpty()) {
-            effectiveDepartments = request.getDepartments().stream()
-                    .filter(callerAllowed::contains)
-                    .distinct()
-                    .collect(Collectors.toList());
+        List<Department> effectiveDepartments = computeEffectiveDepartments(request, caller);
+        UUID queryId = UUID.randomUUID();
+
+        AiServiceClient.InternalAnswerResponse aiAnswer;
+        if (effectiveDepartments.isEmpty()) {
+            aiAnswer = AiServiceClient.InternalAnswerResponse.builder()
+                    .queryId(queryId)
+                    .answer(NOT_FOUND_ANSWER)
+                    .answered(false)
+                    .confidence(0.0)
+                    .citations(Collections.emptyList())
+                    .latencyMs(0)
+                    .build();
         } else {
-            effectiveDepartments = new ArrayList<>(callerAllowed);
+            AiServiceClient.InternalAnswerRequest answerRequest = AiServiceClient.InternalAnswerRequest.builder()
+                    .queryId(queryId)
+                    .query(request.getMessage())
+                    .allowedDepartments(effectiveDepartments)
+                    .history(history)
+                    .topK(6)
+                    .build();
+            aiAnswer = aiServiceClient.answer(answerRequest);
         }
 
-        UUID queryId = UUID.randomUUID();
-        AiServiceClient.InternalAnswerRequest answerRequest = AiServiceClient.InternalAnswerRequest.builder()
-                .queryId(queryId)
-                .query(request.getMessage())
-                .allowedDepartments(effectiveDepartments)
-                .history(history)
-                .topK(6)
-                .build();
-
-        // 5. Call ai-service /internal/v1/answer
-        AiServiceClient.InternalAnswerResponse aiAnswer = aiServiceClient.answer(answerRequest);
         List<CitationDto> citations = aiAnswer.getCitations() != null
                 ? aiAnswer.getCitations()
                 : Collections.emptyList();
 
-        // 6. Persist ASSISTANT message with citations JSON
+        boolean answered = Boolean.TRUE.equals(aiAnswer.getAnswered());
+        String answerText = aiAnswer.getAnswer() != null && !aiAnswer.getAnswer().isBlank()
+                ? aiAnswer.getAnswer()
+                : NOT_FOUND_ANSWER;
+        double confidence = aiAnswer.getConfidence() != null ? aiAnswer.getConfidence() : 0.0;
+        int latencyMs = aiAnswer.getLatencyMs() != null ? aiAnswer.getLatencyMs() : 0;
+
         String citationsJson = serializeCitations(citations);
         ChatMessageEntity assistantMsg = ChatMessageEntity.builder()
                 .conversationId(conversation.getId())
                 .role(MessageRole.ASSISTANT)
-                .content(aiAnswer.getAnswer() != null ? aiAnswer.getAnswer() : "")
+                .content(answerText)
                 .citations(citationsJson)
                 .queryId(queryId)
-                .answered(aiAnswer.getAnswered() != null ? aiAnswer.getAnswered() : false)
+                .answered(answered)
                 .build();
         ChatMessageEntity savedAssistantMsg = chatMessageRepository.save(assistantMsg);
 
         conversation.setUpdatedAt(Instant.now());
         conversationRepository.save(conversation);
+
+        publishQueryAskedAudit(queryId, conversation.getId(), request.getMessage(),
+                effectiveDepartments, answered, confidence, latencyMs, citations);
 
         return ChatResponse.builder()
                 .queryId(queryId)
@@ -124,10 +139,88 @@ public class ChatService {
                 .messageId(savedAssistantMsg.getId())
                 .answer(savedAssistantMsg.getContent())
                 .answered(savedAssistantMsg.getAnswered())
-                .confidence(aiAnswer.getConfidence() != null ? aiAnswer.getConfidence() : 0.0)
+                .confidence(confidence)
                 .citations(citations)
-                .latencyMs(aiAnswer.getLatencyMs() != null ? aiAnswer.getLatencyMs() : 0)
+                .latencyMs(latencyMs)
                 .build();
+    }
+
+    /**
+     * Milestone 4: Server-Sent Events (SSE) chat relay (contracts/streaming.md).
+     * Emits: meta -> token* -> citations -> done (or error), and persists the assistant message.
+     */
+    @Transactional
+    public SseEmitter streamChat(ChatRequest request) {
+        SseEmitter emitter = new SseEmitter(60_000L);
+        try {
+            ChatResponse chatRes = chat(request);
+
+            // 1. event: meta
+            emitter.send(SseEmitter.event()
+                    .name("meta")
+                    .data(objectMapper.writeValueAsString(Map.of(
+                            "queryId", chatRes.getQueryId().toString(),
+                            "conversationId", chatRes.getConversationId().toString(),
+                            "messageId", chatRes.getMessageId().toString()))));
+
+            // 2. event: token (split answer into stream chunks)
+            String answer = chatRes.getAnswer() != null ? chatRes.getAnswer() : "";
+            for (String tokenChunk : splitIntoTokens(answer)) {
+                emitter.send(SseEmitter.event()
+                        .name("token")
+                        .data(objectMapper.writeValueAsString(Map.of("text", tokenChunk))));
+            }
+
+            // 3. event: citations
+            emitter.send(SseEmitter.event()
+                    .name("citations")
+                    .data(objectMapper.writeValueAsString(Map.of(
+                            "citations", chatRes.getCitations() != null ? chatRes.getCitations() : Collections.emptyList()))));
+
+            // 4. event: done
+            emitter.send(SseEmitter.event()
+                    .name("done")
+                    .data(objectMapper.writeValueAsString(Map.of(
+                            "answered", Boolean.TRUE.equals(chatRes.getAnswered()),
+                            "confidence", chatRes.getConfidence() != null ? chatRes.getConfidence() : 0.0,
+                            "latencyMs", chatRes.getLatencyMs() != null ? chatRes.getLatencyMs() : 0))));
+
+            emitter.complete();
+        } catch (Exception ex) {
+            try {
+                emitter.send(SseEmitter.event()
+                        .name("error")
+                        .data(objectMapper.writeValueAsString(Map.of(
+                                "code", "STREAM_ERROR",
+                                "message", ex.getMessage() != null ? ex.getMessage() : "Stream interrupted",
+                                "traceId", RequestIdFilter.getCurrentTraceId()))));
+            } catch (IOException ignored) {
+            }
+            emitter.completeWithError(ex);
+        }
+        return emitter;
+    }
+
+    @Transactional
+    public void submitFeedback(UUID messageId, FeedbackRequest request) {
+        ChatMessageEntity msg = chatMessageRepository.findById(messageId)
+                .orElseThrow(() -> new ResourceNotFoundException("MESSAGE_NOT_FOUND",
+                        "Chat message not found with ID: " + messageId));
+
+        msg.setFeedback(request.getRating().toUpperCase(Locale.ROOT));
+        msg.setFeedbackComment(request.getComment());
+        chatMessageRepository.save(msg);
+
+        if (auditEventPublisher != null) {
+            Map<String, Object> meta = new HashMap<>();
+            meta.put("messageId", messageId.toString());
+            meta.put("rating", msg.getFeedback());
+            if (request.getComment() != null) {
+                meta.put("comment", request.getComment());
+            }
+            auditEventPublisher.publish(AuditAction.FEEDBACK_SUBMITTED, "CONVERSATION",
+                    msg.getConversationId().toString(), meta);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -187,6 +280,94 @@ public class ChatService {
         conversationRepository.delete(conv);
     }
 
+    private Conversation loadOrCreateConversation(ChatRequest request, UUID userId) {
+        if (request.getConversationId() != null) {
+            return conversationRepository.findByIdAndUserId(request.getConversationId(), userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("CONVERSATION_NOT_FOUND",
+                            "Conversation not found with ID: " + request.getConversationId()));
+        }
+        String title = truncateTitle(request.getMessage());
+        Conversation conversation = Conversation.builder()
+                .userId(userId)
+                .title(title)
+                .build();
+        return conversationRepository.save(conversation);
+    }
+
+    private List<AiServiceClient.HistoryMessage> loadLast6HistoryMessages(UUID conversationId) {
+        List<ChatMessageEntity> recentDesc = chatMessageRepository
+                .findTop6ByConversationIdOrderByCreatedAtDesc(conversationId);
+        List<ChatMessageEntity> recentChronological = new ArrayList<>(recentDesc);
+        Collections.reverse(recentChronological);
+
+        return recentChronological.stream()
+                .map(m -> AiServiceClient.HistoryMessage.builder()
+                        .role(m.getRole().name())
+                        .content(m.getContent())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    private List<Department> computeEffectiveDepartments(ChatRequest request, RequestIdFilter.CallerInfo caller) {
+        List<Department> callerAllowed = caller.allowedDepartments();
+        if (request.getDepartments() != null && !request.getDepartments().isEmpty()) {
+            return request.getDepartments().stream()
+                    .filter(callerAllowed::contains)
+                    .distinct()
+                    .collect(Collectors.toList());
+        }
+        return new ArrayList<>(callerAllowed);
+    }
+
+    private void publishQueryAskedAudit(
+            UUID queryId,
+            UUID conversationId,
+            String queryText,
+            List<Department> allowedDepartments,
+            boolean answered,
+            double confidence,
+            int latencyMs,
+            List<CitationDto> citations) {
+        if (auditEventPublisher == null) {
+            return;
+        }
+        List<String> citedDocIds = citations.stream()
+                .map(CitationDto::getDocumentId)
+                .filter(Objects::nonNull)
+                .map(UUID::toString)
+                .distinct()
+                .collect(Collectors.toList());
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("queryId", queryId.toString());
+        metadata.put("queryText", queryText);
+        metadata.put("conversationId", conversationId.toString());
+        metadata.put("allowedDepartments", allowedDepartments.stream().map(Enum::name).collect(Collectors.toList()));
+        metadata.put("answered", answered);
+        metadata.put("confidence", confidence);
+        metadata.put("latencyMs", latencyMs);
+        metadata.put("citedDocumentIds", citedDocIds);
+
+        auditEventPublisher.publish(AuditAction.QUERY_ASKED, "QUERY", queryId.toString(), metadata);
+    }
+
+    private static List<String> splitIntoTokens(String answer) {
+        if (answer.isEmpty()) {
+            return List.of("");
+        }
+        List<String> tokens = new ArrayList<>();
+        String[] words = answer.split("(?<=\\s)");
+        StringBuilder batch = new StringBuilder();
+        for (int i = 0; i < words.length; i++) {
+            batch.append(words[i]);
+            if ((i + 1) % 4 == 0 || i == words.length - 1) {
+                tokens.add(batch.toString());
+                batch.setLength(0);
+            }
+        }
+        return tokens;
+    }
+
     private ChatMessageDto toMessageDto(ChatMessageEntity m) {
         return ChatMessageDto.builder()
                 .id(m.getId())
@@ -226,4 +407,3 @@ public class ChatService {
         return trimmed.length() <= 80 ? trimmed : trimmed.substring(0, 80);
     }
 }
-

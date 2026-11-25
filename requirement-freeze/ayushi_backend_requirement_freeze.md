@@ -81,10 +81,10 @@ Priorities: **MUST** protects the end-to-end demo path, **SHOULD** is expected f
 - [x] Document upload validates PDF/DOCX magic bytes and 25 MB size limits, uploads to S3, records version metadata, and emits `DOCUMENT_INGEST_REQUESTED` to SQS.
 - [x] SQS status consumer idempotently updates document status (`PROCESSING` → `INDEXED` / `FAILED`), page/chunk counts, and active version pointers.
 - [x] Search (`POST /api/v1/search`), non-streaming chat (`POST /api/v1/chat`), conversations (`GET/DELETE /api/v1/conversations`), and chunk preview (`GET /api/v1/documents/{id}/chunks/{chunkId}`) enforce `allowedDepartments` isolation.
-- [ ] JWT login (`POST /api/v1/auth/login`), `/api/v1/users/me`, and Spring Security RBAC guards enforce role and department permissions with zero cross-department leakage on the golden evaluation matrix.
-- [ ] Streaming chat (`POST /api/v1/chat/stream`) relays SSE events (`meta`, `token`, `citations`, `done`) to the browser and persists the completed answer.
-- [ ] `audit-service` consumes `ekm-audit-events` into `audit_logs`, `query_logs`, and `knowledge_gaps`, and `core-api` serves the `/api/v1/admin/**` analytics endpoints.
-- [ ] Both backend services run in Docker Compose and AWS ECS/Fargate with passing `/actuator/health` checks and structured JSON logs.
+- [x] JWT login (`POST /api/v1/auth/login`), `/api/v1/users/me`, and Spring Security RBAC guards enforce role and department permissions with zero cross-department leakage on the golden evaluation matrix.
+- [x] Streaming chat (`POST /api/v1/chat/stream`) relays SSE events (`meta`, `token`, `citations`, `done`) to the browser and persists the completed answer.
+- [x] `audit-service` consumes `ekm-audit-events` into `audit_logs`, `query_logs`, and `knowledge_gaps`, and `core-api` serves the `/api/v1/admin/**` analytics endpoints.
+- [x] Both backend services run in Docker Compose and AWS ECS/Fargate with passing `/actuator/health` checks and structured JSON logs.
 
 ## Inputs the Backend Provides to DevOps & Team
 

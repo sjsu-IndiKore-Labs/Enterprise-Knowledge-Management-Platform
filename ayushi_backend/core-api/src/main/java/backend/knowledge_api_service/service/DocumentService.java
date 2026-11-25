@@ -7,14 +7,12 @@ import backend.knowledge_api_service.entity.Document;
 import backend.knowledge_api_service.entity.DocumentChunk;
 import backend.knowledge_api_service.entity.DocumentVersion;
 import backend.knowledge_api_service.entity.IngestionJob;
+import backend.knowledge_api_service.exception.ForbiddenException;
 import backend.knowledge_api_service.exception.PayloadTooLargeException;
 import backend.knowledge_api_service.exception.ResourceNotFoundException;
 import backend.knowledge_api_service.exception.UnsupportedMediaTypeException;
 import backend.knowledge_api_service.filter.RequestIdFilter;
-import backend.knowledge_api_service.model.ClassificationLevel;
-import backend.knowledge_api_service.model.Department;
-import backend.knowledge_api_service.model.DocumentCategory;
-import backend.knowledge_api_service.model.DocumentStatus;
+import backend.knowledge_api_service.model.*;
 import backend.knowledge_api_service.repository.DocumentChunkRepository;
 import backend.knowledge_api_service.repository.DocumentRepository;
 import backend.knowledge_api_service.repository.DocumentVersionRepository;
@@ -23,6 +21,7 @@ import com.helios.ekm.common.event.DocumentIngestRequestedEvent;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -39,7 +38,6 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class DocumentService {
 
@@ -52,12 +50,35 @@ public class DocumentService {
     private final IngestionJobRepository ingestionJobRepository;
     private final S3StorageService s3StorageService;
     private final SqsIngestionProducer sqsIngestionProducer;
+    private AuditEventPublisher auditEventPublisher;
 
     @Value("${ekm.upload.max-mb:25}")
     private long maxUploadMb = 25;
 
+    public DocumentService(
+            DocumentRepository documentRepository,
+            DocumentVersionRepository documentVersionRepository,
+            DocumentChunkRepository documentChunkRepository,
+            IngestionJobRepository ingestionJobRepository,
+            S3StorageService s3StorageService,
+            SqsIngestionProducer sqsIngestionProducer) {
+        this.documentRepository = documentRepository;
+        this.documentVersionRepository = documentVersionRepository;
+        this.documentChunkRepository = documentChunkRepository;
+        this.ingestionJobRepository = ingestionJobRepository;
+        this.s3StorageService = s3StorageService;
+        this.sqsIngestionProducer = sqsIngestionProducer;
+    }
+
+    @Autowired(required = false)
+    public void setAuditEventPublisher(AuditEventPublisher auditEventPublisher) {
+        this.auditEventPublisher = auditEventPublisher;
+    }
+
     @Transactional
     public DocumentResponse createAndIngestDocument(MultipartFile file, DocumentUploadRequest metadata) {
+        enforceWritePermission(metadata.getDepartment(), null);
+
         byte[] fileBytes = readAndValidateFileBytes(file);
         String resolvedContentType = detectContentTypeByMagicBytes(file, fileBytes);
         String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "document.pdf";
@@ -69,7 +90,6 @@ public class DocumentService {
                 ? metadata.getClassification()
                 : ClassificationLevel.INTERNAL;
 
-        // 1. Insert Document row with status QUEUED
         Document document = Document.builder()
                 .title(metadata.getTitle().trim())
                 .fileName(originalFilename)
@@ -95,10 +115,8 @@ public class DocumentService {
         savedDoc.setS3Key(s3Key);
         savedDoc = documentRepository.save(savedDoc);
 
-        // 2. Store raw file in S3 at documents/{dept}/{documentId}/v1/{filename}
         s3StorageService.uploadFile(bucket, s3Key, fileBytes, resolvedContentType, checksumSha256);
 
-        // 3. Insert DocumentVersion row (version 1, status QUEUED)
         DocumentVersion version = DocumentVersion.builder()
                 .documentId(savedDoc.getId())
                 .version(1)
@@ -113,7 +131,6 @@ public class DocumentService {
                 .build();
         DocumentVersion savedVersion = documentVersionRepository.save(version);
 
-        // 4. Create IngestionJob row for status progress polling compatibility
         IngestionJob job = IngestionJob.builder()
                 .document(savedDoc)
                 .status(DocumentStatus.QUEUED)
@@ -121,7 +138,6 @@ public class DocumentService {
                 .build();
         ingestionJobRepository.save(job);
 
-        // 5. Publish DOCUMENT_INGEST_REQUESTED event to SQS
         DocumentIngestRequestedEvent event = DocumentIngestRequestedEvent.builder()
                 .eventId(UUID.randomUUID())
                 .eventType("DOCUMENT_INGEST_REQUESTED")
@@ -145,6 +161,8 @@ public class DocumentService {
                 .build();
 
         sqsIngestionProducer.publishIngestRequested(event);
+        publishAudit(AuditAction.DOCUMENT_UPLOADED, "DOCUMENT", savedDoc.getId().toString(),
+                Map.of("title", savedDoc.getTitle(), "department", savedDoc.getDepartment().name(), "version", 1));
 
         return toDocumentResponse(savedDoc);
     }
@@ -178,7 +196,6 @@ public class DocumentService {
         RequestIdFilter.CallerInfo caller = RequestIdFilter.getCurrentCaller();
         List<Department> allowedDepts = caller.allowedDepartments();
 
-        // Intersect requested department filter with caller's allowedDepartments
         List<Department> effectiveDepartments;
         if (departmentFilter != null) {
             if (allowedDepts.contains(departmentFilter)) {
@@ -247,6 +264,9 @@ public class DocumentService {
                 .map(this::toVersionDto)
                 .collect(Collectors.toList());
 
+        publishAudit(AuditAction.DOCUMENT_VIEWED, "DOCUMENT", doc.getId().toString(),
+                Map.of("department", doc.getDepartment().name()));
+
         return DocumentDetailResponse.builder()
                 .id(doc.getId())
                 .title(doc.getTitle())
@@ -269,6 +289,8 @@ public class DocumentService {
     @Transactional
     public DocumentResponse updateDocumentMetadata(UUID documentId, UpdateDocumentRequest request) {
         Document doc = findAuthorizedDocumentOrThrow(documentId);
+        enforceWritePermission(doc.getDepartment(), doc.getId().toString());
+
         if (request.getTitle() != null && !request.getTitle().isBlank()) {
             doc.setTitle(request.getTitle().trim());
         }
@@ -282,21 +304,29 @@ public class DocumentService {
             doc.setTagList(request.getTags());
         }
         Document saved = documentRepository.save(doc);
+        publishAudit(AuditAction.DOCUMENT_UPDATED, "DOCUMENT", saved.getId().toString(),
+                Map.of("title", saved.getTitle(), "department", saved.getDepartment().name()));
         return toDocumentResponse(saved);
     }
 
     @Transactional
     public void softDeleteDocument(UUID documentId) {
         Document doc = findAuthorizedDocumentOrThrow(documentId);
+        enforceWritePermission(doc.getDepartment(), doc.getId().toString());
+
         doc.setDeletedAt(Instant.now());
         documentRepository.save(doc);
         documentChunkRepository.markChunksDeletedByDocumentId(documentId);
+        publishAudit(AuditAction.DOCUMENT_DELETED, "DOCUMENT", documentId.toString(),
+                Map.of("department", doc.getDepartment().name()));
         log.info("Soft-deleted documentId={} and marked its chunks deleted", documentId);
     }
 
     @Transactional
     public DocumentVersionDto uploadNewVersion(UUID documentId, MultipartFile file, String changeNote) {
         Document doc = findAuthorizedDocumentOrThrow(documentId);
+        enforceWritePermission(doc.getDepartment(), doc.getId().toString());
+
         byte[] fileBytes = readAndValidateFileBytes(file);
         String resolvedContentType = detectContentTypeByMagicBytes(file, fileBytes);
         String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename() : doc.getFileName();
@@ -364,6 +394,8 @@ public class DocumentService {
                 .build();
 
         sqsIngestionProducer.publishIngestRequested(event);
+        publishAudit(AuditAction.DOCUMENT_VERSION_UPLOADED, "DOCUMENT", doc.getId().toString(),
+                Map.of("version", nextVersion, "department", doc.getDepartment().name()));
 
         return toVersionDto(savedVersion);
     }
@@ -380,6 +412,8 @@ public class DocumentService {
                         ? doc.getS3Key()
                         : s3StorageService.buildS3Key(doc.getDepartment().name(), doc.getId(), targetVersion, doc.getFileName()));
 
+        publishAudit(AuditAction.DOCUMENT_VIEWED, "DOCUMENT", doc.getId().toString(),
+                Map.of("version", targetVersion, "action", "DOWNLOAD_URL"));
         return s3StorageService.generatePresignedDownloadUrl(bucket, s3Key, page);
     }
 
@@ -394,6 +428,8 @@ public class DocumentService {
         boolean deptAllowed = caller.allowedDepartments().stream()
                 .anyMatch(d -> d.name().equalsIgnoreCase(chunk.getDepartmentCode()));
         if (!deptAllowed) {
+            publishAudit(AuditAction.ACCESS_DENIED, "DOCUMENT", documentId.toString(),
+                    Map.of("chunkId", chunkId.toString(), "documentDepartment", chunk.getDepartmentCode()));
             throw new ResourceNotFoundException("DOCUMENT_NOT_FOUND", "Document or chunk not found");
         }
 
@@ -432,10 +468,46 @@ public class DocumentService {
 
         RequestIdFilter.CallerInfo caller = RequestIdFilter.getCurrentCaller();
         if (!caller.allowedDepartments().contains(doc.getDepartment())) {
+            publishAudit(AuditAction.ACCESS_DENIED, "DOCUMENT", documentId.toString(),
+                    Map.of("documentDepartment", doc.getDepartment().name(), "callerDepartment", caller.department().name()));
             throw new ResourceNotFoundException("DOCUMENT_NOT_FOUND",
                     "Document not found with ID: " + documentId);
         }
         return doc;
+    }
+
+    /**
+     * Enforces contracts/auth.md RBAC write rules:
+     * - ADMIN: may upload/update/delete documents in any department (including GENERAL)
+     * - MANAGER: may upload/update/delete documents ONLY in their own department (GENERAL is ADMIN-only)
+     * - EMPLOYEE: may never upload/update/delete documents
+     */
+    public void enforceWritePermission(Department targetDepartment, String resourceId) {
+        RequestIdFilter.CallerInfo caller = RequestIdFilter.getCurrentCaller();
+        String role = caller.role();
+        if ("ADMIN".equalsIgnoreCase(role)) {
+            return;
+        }
+        if ("MANAGER".equalsIgnoreCase(role)
+                && targetDepartment != null
+                && targetDepartment != Department.GENERAL
+                && targetDepartment == caller.department()) {
+            return;
+        }
+
+        publishAudit(AuditAction.ACCESS_DENIED, "DOCUMENT", resourceId,
+                Map.of(
+                        "callerRole", role,
+                        "callerDepartment", caller.department() != null ? caller.department().name() : "NONE",
+                        "targetDepartment", targetDepartment != null ? targetDepartment.name() : "NONE"));
+        throw new ForbiddenException("Caller role '" + role + "' in department '" + caller.department()
+                + "' is not permitted to modify documents in department '" + targetDepartment + "'");
+    }
+
+    private void publishAudit(AuditAction action, String resourceType, String resourceId, Map<String, Object> metadata) {
+        if (auditEventPublisher != null) {
+            auditEventPublisher.publish(action, resourceType, resourceId, metadata);
+        }
     }
 
     private byte[] readAndValidateFileBytes(MultipartFile file) {
@@ -462,14 +534,9 @@ public class DocumentService {
         }
     }
 
-    /**
-     * Validates file type by magic bytes (PDF = %PDF-, DOCX = PK\x03\x04 ZIP header + .docx extension).
-     * Throws 415 UnsupportedMediaTypeException if neither matches.
-     */
     public String detectContentTypeByMagicBytes(MultipartFile file, byte[] bytes) {
         String filename = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase(Locale.ROOT) : "";
 
-        // Check PDF magic bytes: %PDF- (0x25 0x50 0x44 0x46 0x2D)
         if (bytes.length >= 5
                 && bytes[0] == 0x25
                 && bytes[1] == 0x50
@@ -479,7 +546,6 @@ public class DocumentService {
             return MIME_PDF;
         }
 
-        // Check DOCX magic bytes: PK\x03\x04 (0x50 0x4B 0x03 0x04) and .docx extension or DOCX content-type
         if (bytes.length >= 4
                 && bytes[0] == 0x50
                 && bytes[1] == 0x4B

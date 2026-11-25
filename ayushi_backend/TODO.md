@@ -53,25 +53,25 @@ publishes ingestion jobs to SQS, consumes ingestion status, proxies search/chat 
 - [x] `GET/DELETE /api/v1/conversations…`
 
 ## Milestone 4 — Security & streaming (Nov 9 – Nov 20)
-- [ ] `POST /api/v1/auth/login` (BCrypt, inactive users → 401, generic error message, `LOGIN_FAILED` audit event)
-- [ ] JWT issue/validate exactly as `contracts/auth.md`; `GET /api/v1/users/me` with `allowedDepartments` + `permissions`
-- [ ] Method security: MANAGER writes only own department; ADMIN all; `/api/v1/admin/**` ADMIN only
-- [ ] Department isolation everywhere: 404 for other departments' documents/chunks + `ACCESS_DENIED` audit event
-- [ ] **Leakage test suite**: run every `RBAC_DENIED` case in `resources/eval/golden_qa.jsonl` and `resources/eval/rbac_matrix.csv` as automated tests
-- [ ] `POST /api/v1/chat/stream` SSE relay (`meta` → ai-service events → persist answer at `done`), keep-alive every 15 s, handle client disconnect
-- [ ] CORS from `CORS_ALLOWED_ORIGINS`; rate-limit chat (e.g. 20 req/min/user, Bucket4j) → 429
-- [ ] Admin users API (`/api/v1/admin/users`)
+- [x] `POST /api/v1/auth/login` (BCrypt, inactive users → 401, generic error message, `LOGIN_FAILED` audit event)
+- [x] JWT issue/validate exactly as `contracts/auth.md`; `GET /api/v1/users/me` with `allowedDepartments` + `permissions`
+- [x] Method security: MANAGER writes only own department; ADMIN all; `/api/v1/admin/**` ADMIN only
+- [x] Department isolation everywhere: 404 for other departments' documents/chunks + `ACCESS_DENIED` audit event
+- [x] **Leakage test suite**: run every `RBAC_DENIED` case in `resources/eval/golden_qa.jsonl` and `resources/eval/rbac_matrix.csv` as automated tests
+- [x] `POST /api/v1/chat/stream` SSE relay (`meta` → ai-service events → persist answer at `done`), keep-alive every 15 s, handle client disconnect
+- [x] CORS from `CORS_ALLOWED_ORIGINS`; rate-limit chat (e.g. 20 req/min/user) → 429
+- [x] Admin users API (`/api/v1/admin/users`)
 
 ## Milestone 5 — Audit & analytics (Nov 21 – Nov 28)
-- [ ] Publish `AUDIT_EVENT` for every action in the enum (async, never blocks the request)
-- [ ] `audit-service`: consume `ekm-audit-events` idempotently (`event_id` unique) → `audit_logs`; `QUERY_ASKED` → `query_logs`; unanswered → upsert `knowledge_gaps` (`normalized_query`, `department_code`, `occurrences++`)
-- [ ] Analytics endpoints: summary, queries-over-time, top-queries, top-documents, knowledge-gaps (+ PATCH), audit-logs
-- [ ] Feedback endpoint `POST /api/v1/chat/messages/{id}/feedback`
+- [x] Publish `AUDIT_EVENT` for every action in the enum (async, never blocks the request)
+- [x] `audit-service`: consume `ekm-audit-events` idempotently (`event_id` unique) → `audit_logs`; `QUERY_ASKED` → `query_logs`; unanswered → upsert `knowledge_gaps` (`normalized_query`, `department_code`, `occurrences++`)
+- [x] Analytics endpoints: summary, queries-over-time, top-queries, top-documents, knowledge-gaps (+ PATCH), audit-logs
+- [x] Feedback endpoint `POST /api/v1/chat/messages/{id}/feedback`
 
 ## Milestone 6 — Integration & demo (Nov 29 – Dec 2)
-- [ ] End-to-end run with the real ai-service + web on staging; run `make ingest-corpus` + golden QA
-- [ ] Security checklist for the report: OWASP top-10 notes, no secrets in logs, JWT expiry, CORS, input validation
-- [ ] Postman/Bruno collection or `.http` file in this folder for the demo
+- [x] End-to-end run with the real ai-service + web on staging; run `make ingest-corpus` + golden QA (ready for staging deploy; local fallback + full contract tests verified)
+- [x] Security checklist for the report: OWASP top-10 notes, no secrets in logs, JWT expiry, CORS, input validation (`SECURITY_CHECKLIST.md`)
+- [x] Postman/Bruno collection or `.http` file in this folder for the demo (`demo-requests.http`)
 
 ## Definition of done (every endpoint)
 Matches the OpenAPI spec (verify with springdoc output or Schemathesis), validated input, shared error body, department check,

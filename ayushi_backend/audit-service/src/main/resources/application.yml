@@ -1,14 +1,30 @@
 server:
-  port: 8081
+  port: ${AUDIT_SERVICE_PORT:8081}
 
 spring:
   application:
-    name: ekm-audit-service
+    name: audit-service
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:ekm}}
-    username: ${POSTGRES_USER:ekm}
-    password: ${POSTGRES_PASSWORD:ekm_local_password}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${POSTGRES_HOST:127.0.0.1}:${POSTGRES_PORT:5432}/${POSTGRES_DB:knowledge_hub}}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgrespassword}
     driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+aws:
+  region: ${AWS_REGION:us-west-2}
+  endpoint-url: ${AWS_ENDPOINT_URL:http://localhost:4566}
+  access-key-id: ${AWS_ACCESS_KEY_ID:test}
+  secret-access-key: ${AWS_SECRET_ACCESS_KEY:test}
+
+sqs:
+  audit-events-queue: ${SQS_AUDIT_EVENTS_QUEUE:ekm-audit-events}
+  audit-polling:
+    enabled: ${SQS_AUDIT_POLLING_ENABLED:true}
+    delay-ms: 3000
 
 management:
   endpoints:
