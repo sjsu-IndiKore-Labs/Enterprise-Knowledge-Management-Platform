@@ -1,8 +1,9 @@
 from uuid import uuid4
 
+from fastapi.testclient import TestClient
+
 from app.config import get_settings
 from app.main import app
-from fastapi.testclient import TestClient
 
 
 def test_internal_routes_require_token():

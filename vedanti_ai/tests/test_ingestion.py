@@ -37,8 +37,9 @@ def test_docx_or_pdf_error_codes_are_contract_names():
 
 
 def test_docx_preserves_table_order_and_heading_context(tmp_path):
-    from app.ingestion.extract import extract_docx
     from docx import Document
+
+    from app.ingestion.extract import extract_docx
 
     document = Document()
     document.add_heading("Benefits", level=1)

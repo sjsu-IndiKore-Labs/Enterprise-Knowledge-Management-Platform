@@ -4,6 +4,7 @@ from unittest.mock import Mock
 from uuid import uuid4
 
 import pytest
+
 from app.config import Settings
 from app.ingestion import worker
 from app.ingestion.chunker import Chunk
