@@ -23,8 +23,8 @@ Requirements: Docker Desktop, Node 20 (for `npx` mocks/linters), Python 3.11, Ja
 ```bash
 make env            # creates .env from .env.example
 make up             # postgres + pgvector, LocalStack (S3 + SQS)
-make migrate-raw    # only until core-api (Flyway) exists
-make seed           # dev users — password in resources/seed/README.md
+make up-apps        # all services; core-api's Flyway creates the schema and dev users (password in resources/seed/README.md)
+# older local DB? run `make reset` once first — DBs built with `make migrate-raw` break core-api's migrations
 make mock-core-api  # mocked REST API on :4010 for frontend work
 make up-apps        # all services that already have a Dockerfile
 make help           # everything else

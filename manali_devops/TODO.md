@@ -61,14 +61,17 @@ Each service's `Dockerfile` + health endpoint (see `contracts/ports-and-services
 - [x] Tear-down plan for AWS resources after grading (cost): [docs/aws-deployment.md §9](docs/aws-deployment.md#9-teardown-after-grading)
 
 ## Written on 2026-10-19, not yet run against a real AWS account
-- [ ] Bootstrap state + first `terraform apply` of staging ([docs/aws-deployment.md](docs/aws-deployment.md)); set the OpenAI secret
-- [ ] GitHub variables `AWS_DEPLOY_ROLE_ARN`, `AWS_REGION`, `STAGING_URL` + environment `staging`; first green CD run
+- [x] Bootstrap state + first `terraform apply` of staging ([docs/aws-deployment.md](docs/aws-deployment.md)): live at http://ekm-staging-800774594.us-west-2.elb.amazonaws.com; current code deployed 2026-11-27 (`f57ae53`), smoke test passes except chat
+- [ ] Put the real OpenAI key in `ekm/staging/openai-api-key` (still `REPLACE_ME`), then `make deploy` / force-redeploy ai-service + ai-worker
+- [ ] Stop using the root account: create an IAM user/role for Terraform + deploys
+- [x] GitHub variables `AWS_DEPLOY_ROLE_ARN`, `AWS_REGION`, `STAGING_URL` + environment `staging` (set 2026-11-27)
+- [ ] First green CD run (needs `develop` → `main` merge)
 - [ ] Jenkins running (local Docker or EC2) with the pipeline; screenshot for the report
-- [ ] Get answers to the container-convention questions sent to Ayushi, Vedanti and Changhyun
+- [ ] Get answers to the container-convention questions sent to Ayushi, Vedanti and Changhyun (all three are satisfied in code; asked them to mark answered in [to-all 2026-11-27](../questions/to-all/2026-11-27_from-manali_staging-live-and-local-reset.md))
 - [x] `REAL=1 make test-docker` once each service has code (2026-11-27: all 5 real images healthy against fresh Postgres + LocalStack; CI runs it with `BACKEND_NETWORK=ekm_default`)
 - [x] Backend switched to Maven: build-push.sh / test_images.sh detect `ayushi_backend/pom.xml`, fixture converted to Maven
 - [x] ai-service/ai-worker read `POSTGRES_*` + `POSTGRES_SSLMODE` (fixed by Vedanti in #41; images re-tested healthy 2026-11-27). Close [the question](../questions/to-vedanti/2026-11-27_from-manali_postgres-env-var-names.md) once she fills in the Answer
-- [ ] Retire `make migrate-raw` once Ayushi confirms Flyway is the schema source of truth (local DBs built with it break core-api's V2 migration)
+- [x] Stop recommending `make migrate-raw` for normal setup (AGENTS.md, README, local-development.md now say `make reset && make up-apps`); kept for infra tests/CI
 
 ## Team-lead recurring
 - [ ] Weekly sync (suggest Sunday): each member reports TODO progress + open questions; update `docs/timeline.md`
@@ -77,4 +80,5 @@ Each service's `Dockerfile` + health endpoint (see `contracts/ports-and-services
 
 ## Blocked / waiting on
 - **Blocking demo:** core-api fresh-DB schema lacks `document_chunks.embedding`, INDEXED events lost (@Transactional self-invocation), DOCX upload 500: [questions/to-ayushi/2026-11-27_from-manali_flyway-vs-contract-schema.md](../questions/to-ayushi/2026-11-27_from-manali_flyway-vs-contract-schema.md)
-- Staging deploy, CD, k6 on staging, Jenkins screenshot: need `aws login` + GitHub variables (see below)
+- k6 + golden eval + corpus on staging: need the OpenAI key and Ayushi's fixes
+- Team told to reset local DBs: [questions/to-all/2026-11-27_from-manali_staging-live-and-local-reset.md](../questions/to-all/2026-11-27_from-manali_staging-live-and-local-reset.md)

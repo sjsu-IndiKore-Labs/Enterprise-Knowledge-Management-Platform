@@ -46,7 +46,7 @@ ps: ## Show running services
 seed: ## Load dev users (requires tables: run core-api once, or Flyway)
 	$(COMPOSE) exec -T postgres psql -U $${POSTGRES_USER:-ekm} -d $${POSTGRES_DB:-ekm} < contracts/database/seed/dev_seed.sql
 
-migrate-raw: ## Apply V*.sql migrations directly with psql (only before core-api/Flyway exists!)
+migrate-raw: ## Contract schema via psql, for infra tests only (core-api Flyway can't migrate it; use make reset)
 	@for f in contracts/database/migrations/V*.sql; do echo "applying $$f"; \
 	  $(COMPOSE) exec -T postgres psql -v ON_ERROR_STOP=1 -U $${POSTGRES_USER:-ekm} -d $${POSTGRES_DB:-ekm} < $$f; done
 
