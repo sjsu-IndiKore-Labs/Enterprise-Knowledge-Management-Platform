@@ -1,0 +1,2 @@
+*.backend.hcl
+!*.backend.hcl.example

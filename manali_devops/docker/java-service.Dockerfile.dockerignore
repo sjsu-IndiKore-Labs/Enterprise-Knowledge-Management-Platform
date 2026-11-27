@@ -1,0 +1,9 @@
+# Context is the repo root: send only the backend sources and DB migrations.
+*
+!ayushi_backend/
+!contracts/database/migrations/
+!manali_devops/tests/fixtures/java-backend/
+**/build/
+**/.gradle/
+**/out/
+**/*.iml

@@ -1,0 +1,104 @@
+# Continuous deployment to AWS ECS (staging). Owner: Manali.
+# Triggers on every push to main (after CI) or manually.
+# One-time setup (manali_devops/docs/aws-deployment.md):
+#   repository variables  AWS_DEPLOY_ROLE_ARN  (terraform output github_deploy_role_arn)
+#                         AWS_REGION           (default us-west-2)
+#                         STAGING_URL          (terraform output app_url)
+#   GitHub environment    "staging" (optional required reviewers)
+# Until AWS_DEPLOY_ROLE_ARN is set the workflow only builds images and skips deployment.
+name: CD staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      services:
+        description: "Services to deploy (space separated, empty = all built)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write   # OIDC -> AWS
+
+concurrency:
+  group: cd-staging
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
+  ENVIRONMENT: staging
+  IMAGE_TAG: ${{ github.sha }}
+  PLATFORM: linux/amd64   # must match var.cpu_architecture (X86_64)
+
+jobs:
+  build:
+    name: Build images
+    runs-on: ubuntu-latest
+    outputs:
+      pushed: ${{ steps.build.outputs.pushed }}
+      deploy_enabled: ${{ steps.cfg.outputs.enabled }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: cfg
+        run: echo "enabled=${{ vars.AWS_DEPLOY_ROLE_ARN != '' }}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: steps.cfg.outputs.enabled == 'true'
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - id: ecr
+        if: steps.cfg.outputs.enabled == 'true'
+        uses: aws-actions/amazon-ecr-login@v2
+      - id: build
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry || 'local.invalid' }}
+          PUSH: ${{ steps.cfg.outputs.enabled == 'true' && '1' || '0' }}
+        run: |
+          manali_devops/scripts/build-push.sh "$ENVIRONMENT" "$IMAGE_TAG" | tee build.log
+          echo "pushed=$(grep '^PUSHED:' build.log | cut -d' ' -f2-)" >> "$GITHUB_OUTPUT"
+      - if: steps.cfg.outputs.enabled != 'true'
+        run: echo "::notice::AWS_DEPLOY_ROLE_ARN not set — images built but not pushed or deployed."
+
+  deploy:
+    name: Deploy to ECS
+    needs: build
+    if: needs.build.outputs.deploy_enabled == 'true' && needs.build.outputs.pushed != ''
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Deploy
+        env:
+          PUSHED: ${{ needs.build.outputs.pushed }}
+          REQUESTED: ${{ github.event.inputs.services }}
+        run: |
+          services=""
+          for s in $PUSHED; do
+            services="$services $s"
+            [ "$s" = ai-service ] && services="$services ai-worker"
+          done
+          if [ -n "$REQUESTED" ]; then services="$REQUESTED"; fi
+          echo "Deploying:$services"
+          # shellcheck disable=SC2086
+          manali_devops/scripts/ecs-deploy.sh "$ENVIRONMENT" "$IMAGE_TAG" $services
+
+  smoke:
+    name: Smoke test
+    needs: deploy
+    if: vars.STAGING_URL != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install -r manali_devops/tests/requirements.txt
+      - run: python manali_devops/tests/smoke/smoke_test.py --base-url "${{ vars.STAGING_URL }}" --allow-missing

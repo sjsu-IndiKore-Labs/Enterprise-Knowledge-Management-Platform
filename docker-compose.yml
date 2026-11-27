@@ -1,17 +1,23 @@
-# Local stack. Owner: Manali.
+# Local stack. Owner: Manali.  Images are built from the templates in manali_devops/docker/.
 #   make up        -> infra only (postgres + localstack)
 #   make up-apps   -> infra + every application service (profile "apps")
+#   make mocks     -> Prism mocks of core-api (:4010) and ai-service (:4011) (profile "mocks")
 # Container-to-container hostnames are the service names below (contracts/ports-and-services.md).
 name: ekm
 
-x-app-env: &app-env
-  env_file: .env
-  environment:
+x-app: &app
+  restart: unless-stopped
+  env_file:
+    - path: .env
+      required: false
+  environment: &app-env
     POSTGRES_HOST: postgres
+    POSTGRES_SSLMODE: disable
     AWS_ENDPOINT_URL: http://localstack:4566
     AI_SERVICE_URL: http://ai-service:8000
 
 services:
+  # ---------------------------------------------------------------- infra
   postgres:
     image: pgvector/pgvector:pg16
     environment:
@@ -47,46 +53,82 @@ services:
 
   # ---------------------------------------------------------------- apps
   core-api:
+    <<: *app
     profiles: ["apps"]
+    image: ekm/core-api:local
     build:
-      context: .                                   # root context so the image can COPY contracts/database/migrations
-      dockerfile: ayushi_backend/core-api/Dockerfile
-    <<: *app-env
+      context: .                                    # repo root: image includes contracts/database/migrations
+      dockerfile: manali_devops/docker/java-service.Dockerfile
+      args: { SERVICE: core-api, PORT: "8080" }
     ports: ["8080:8080"]
     depends_on:
       postgres: { condition: service_healthy }
       localstack: { condition: service_healthy }
 
   audit-service:
+    <<: *app
     profiles: ["apps"]
+    image: ekm/audit-service:local
     build:
       context: .
-      dockerfile: ayushi_backend/audit-service/Dockerfile
-    <<: *app-env
+      dockerfile: manali_devops/docker/java-service.Dockerfile
+      args: { SERVICE: audit-service, PORT: "8081" }
     ports: ["8081:8081"]
     depends_on:
-      core-api: { condition: service_started }      # core-api runs the Flyway migrations
+      core-api: { condition: service_healthy }      # core-api applies the Flyway migrations first
 
   ai-service:
+    <<: *app
     profiles: ["apps"]
+    image: ekm/ai-service:local
     build:
       context: vedanti_ai
-    <<: *app-env
+      dockerfile: ../manali_devops/docker/python-service.Dockerfile
     ports: ["8000:8000"]
     depends_on:
       postgres: { condition: service_healthy }
       localstack: { condition: service_healthy }
 
-  web:
+  ai-worker:                                        # same image as ai-service, SQS ingestion loop
+    <<: *app
     profiles: ["apps"]
+    image: ekm/ai-service:local
+    build:
+      context: vedanti_ai
+      dockerfile: ../manali_devops/docker/python-service.Dockerfile
+    command: ["python", "-m", "app.ingestion.worker"]
+    healthcheck:
+      disable: true
+    depends_on:
+      ai-service: { condition: service_started }
+
+  web:
+    <<: *app
+    profiles: ["apps"]
+    image: ekm/web:local
     build:
       context: changhyun_frontend
+      dockerfile: ../manali_devops/docker/node-web.Dockerfile
       args:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
-    env_file: .env
     ports: ["3000:3000"]
     depends_on:
       - core-api
+
+  # ---------------------------------------------------------------- mocks
+  mock-core-api:
+    profiles: ["mocks"]
+    image: stoplight/prism:5
+    command: ["mock", "-h", "0.0.0.0", "--cors", "/contracts/openapi/core-api.yaml"]
+    volumes: ["./contracts:/contracts:ro"]
+    ports: ["4010:4010"]
+
+  mock-ai-service:
+    profiles: ["mocks"]
+    image: stoplight/prism:5
+    command: ["mock", "-h", "0.0.0.0", "-p", "4010", "/contracts/openapi/ai-service.yaml"]
+    volumes: ["./contracts:/contracts:ro"]
+    ports: ["4011:4010"]
 
 volumes:
   pgdata:

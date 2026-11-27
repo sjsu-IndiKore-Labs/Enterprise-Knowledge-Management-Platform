@@ -1,77 +1,19 @@
-# Terraform (Milestone 2–4)
+# Terraform: AWS staging stack
 
-Planned modules / files:
-```
-main.tf  providers.tf  variables.tf  outputs.tf  backend.tf
-network.tf     # VPC, 2 public + 2 private subnets, NAT (or VPC endpoints to save cost)
-ecr.tf         # ekm-core-api, ekm-audit-service, ekm-ai-service, ekm-web
-s3.tf          # ekm-documents-<env>-<account>, SSE-KMS, versioning, block public access
-sqs.tf         # 3 queues + DLQs (names in contracts/ports-and-services.md)
-rds.tf         # Postgres 16, pgvector, private
-ecs.tf         # cluster, task defs, services, Service Connect
-alb.tf         # /api/* -> core-api, /* -> web
-iam.tf         # task roles per service (least privilege), GitHub OIDC deploy role
-secrets.tf     # JWT_SECRET, OPENAI_API_KEY, INTERNAL_SERVICE_TOKEN, DB password
-cloudwatch.tf  # log groups, alarms, dashboard, SNS
-```
-Shared environment values live in the repository-root `staging.tfvars.example`.
-Copy it to `staging.tfvars` (git-ignored) before applying Terraform. Never add secrets
-to either file; runtime secrets belong in AWS Secrets Manager.
+Flat, single-environment stack (one `tfvars` per environment). Start with [../../docs/aws-deployment.md](../../docs/aws-deployment.md).
 
-The repository-root `staging.env.example` contains the non-secret runtime names for ECS:
-the staging S3 bucket, SQS queues, AWS region, and service settings. ECS task definitions
-should inject those values and load secret values from Secrets Manager. Do not set
-`AWS_ENDPOINT_URL` or static AWS access keys in staging.
-
-The current Terraform foundation defines ECS task roles for the existing staging bucket:
-
-- `core-api` can list and read/write `documents/*` and use the S3 KMS key.
-- `ai-service` can list/read `documents/*` and decrypt the S3 KMS key.
-- `web` and `audit-service` receive no S3 permissions.
-
-Before initializing the main stack for the first time, bootstrap the remote state resources:
+| File | Resources |
+|---|---|
+| `versions.tf`, `variables.tf`, `locals.tf`, `outputs.tf` | providers, inputs (sizing in `var.services`), naming from `contracts/ports-and-services.md` |
+| `network.tf`, `security_groups.tf` | VPC, 2 public + 2 private subnets, optional NAT, S3 endpoint, SGs |
+| `ecr.tf`, `ecs.tf`, `alb.tf` | registries, cluster, task definitions, services, Service Connect, autoscaling, load balancer |
+| `s3.tf`, `sqs.tf`, `rds.tf`, `secrets.tf`, `iam.tf` | data stores, queues, secrets, least-privilege roles |
+| `monitoring.tf`, `github_oidc.tf` | alarms, dashboard, SNS, budget; GitHub deploy role |
+| `bootstrap/` | state bucket + lock table (run once) |
+| `tests/stack.tftest.hcl` | offline unit tests (`make tf-test`) |
 
 ```bash
-cd bootstrap
-terraform init
-terraform apply
-cd ..
-terraform init -migrate-state
+make tf-validate          # no AWS needed
+make tf-test              # no AWS needed
+make tf-init TF_ENV=staging && make tf-plan TF_ENV=staging && make tf-apply TF_ENV=staging
 ```
-
-The bootstrap stack creates the encrypted, versioned state bucket
-`ekm-terraform-state-474632925730` and the pay-per-request DynamoDB lock table
-`ekm-terraform-locks`. The existing staging S3 bucket must be imported into the main
-stack before the first apply:
-
-```bash
-terraform import -var-file=../../../staging.tfvars.example aws_s3_bucket.documents ekm-documents-staging
-```
-
-The staging SQS configuration creates these contract queues and DLQs:
-
-- `ekm-staging-document-ingest` / `ekm-staging-document-ingest-dlq` — 300-second visibility timeout
-- `ekm-staging-document-status` / `ekm-staging-document-status-dlq` — 60-second visibility timeout
-- `ekm-staging-audit-events` / `ekm-staging-audit-events-dlq` — 60-second visibility timeout
-
-All queues use SQS-managed server-side encryption, 20-second long polling, and a redrive policy
-after three receives. The task-role policies grant only the send/receive permissions required by
-each service.
-
-The RDS configuration provisions PostgreSQL 16 (`db.t4g.micro`) in the two private subnets. The
-DB subnet group spans both availability zones, while the staging instance remains single-AZ to
-keep the requested instance size and staging cost profile. RDS manages the master password in
-Secrets Manager. The RDS security group allows port 5432 only from the shared ECS task security
-group. The existing core-api Flyway V1 migration runs `CREATE EXTENSION IF NOT EXISTS vector`
-when it initializes the database.
-
-Run from this directory:
-
-```bash
-cp ../../../staging.tfvars.example staging.tfvars
-terraform init
-terraform plan -var-file=staging.tfvars
-```
-
-The existing bucket must be referenced or imported into state before applying. The task
-roles can later be attached to ECS task definitions in the Milestone 4 configuration.

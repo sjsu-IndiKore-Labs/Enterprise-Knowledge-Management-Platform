@@ -1,0 +1,126 @@
+# DevOps checks: Dockerfiles, compose, shell scripts, workflows, Terraform, image builds, LocalStack/Postgres integration.
+# Owner: Manali. Runs when infra-related files change.
+name: DevOps CI
+
+on:
+  pull_request:
+    paths:
+      - "manali_devops/**"
+      - "docker-compose.yml"
+      - ".env.example"
+      - "Makefile"
+      - "contracts/database/**"
+      - "contracts/ports-and-services.md"
+      - ".github/workflows/**"
+  push:
+    branches: [main, develop]
+    paths:
+      - "manali_devops/**"
+      - "docker-compose.yml"
+      - ".env.example"
+      - "Makefile"
+      - "contracts/database/**"
+      - "contracts/ports-and-services.md"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: devops-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (hadolint, shellcheck, actionlint, compose)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: hadolint
+        run: |
+          for f in manali_devops/docker/*.Dockerfile; do
+            echo "::group::$f"
+            docker run --rm -i -v "$PWD/manali_devops/docker/.hadolint.yaml:/.config/hadolint.yaml" hadolint/hadolint:v2.12.0 < "$f"
+            echo "::endgroup::"
+          done
+      - name: shellcheck
+        run: shellcheck manali_devops/scripts/*.sh manali_devops/localstack/*.sh manali_devops/tests/docker/*.sh
+      - name: actionlint
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.3 -color
+      - name: docker compose config
+        run: docker compose --profile apps --profile mocks config -q
+
+  unit:
+    name: Config tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install -r manali_devops/tests/requirements.txt
+      - run: pytest manali_devops/tests -m "not integration" -q
+
+  terraform:
+    name: Terraform (fmt, validate, test, tflint, checkov)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: manali_devops/infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: 1.9.8 }
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
+      - run: terraform test
+      - run: cd bootstrap && terraform init -backend=false -input=false && terraform validate
+      - uses: terraform-linters/setup-tflint@v4
+        with: { tflint_version: v0.53.0 }
+      - run: tflint --init && tflint -f compact
+      - name: checkov (report only)
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: manali_devops/infra/terraform
+          framework: terraform
+          soft_fail: true
+          quiet: true
+
+  images:
+    name: Docker templates build + run (fixtures and real services)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: manali_devops/tests/docker/test_images.sh
+      - name: Start Postgres + LocalStack for the real backend images
+        run: docker compose up -d --wait postgres localstack
+      - name: Real services (when they exist)
+        run: REAL=1 BACKEND_NETWORK=ekm_default manali_devops/tests/docker/test_images.sh
+      - if: always()
+        run: docker compose down -v
+      - name: Trivy scan (report only)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: ekm-test/ai-service
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "0"
+
+  integration:
+    name: Integration (Postgres+pgvector, LocalStack)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install -r manali_devops/tests/requirements.txt
+      - run: cp .env.example .env
+      - run: docker compose up -d --wait postgres localstack
+      - run: make migrate-raw seed
+      - run: pytest manali_devops/tests -m integration -q
+      - if: failure()
+        run: docker compose logs --tail 100
+      - if: always()
+        run: docker compose down -v

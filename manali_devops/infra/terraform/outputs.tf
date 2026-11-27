@@ -1,59 +1,53 @@
-output "core_api_task_role_arn" {
-  description = "ECS task role ARN for core-api."
-  value       = aws_iam_role.core_api_task.arn
+output "app_url" {
+  description = "Public URL of the portal (web on /, core-api on /api/v1/*)."
+  value       = local.app_url
 }
 
-output "ai_service_task_role_arn" {
-  description = "ECS task role ARN for ai-service."
-  value       = aws_iam_role.ai_service_task.arn
+output "alb_dns_name" {
+  value = aws_lb.this.dns_name
 }
 
-output "audit_service_task_role_arn" {
-  description = "ECS task role ARN for audit-service."
-  value       = aws_iam_role.audit_service_task.arn
+output "ecr_repositories" {
+  value = { for k, r in aws_ecr_repository.this : k => r.repository_url }
 }
 
-output "vpc_id" {
-  description = "Staging VPC ID."
-  value       = aws_vpc.main.id
+output "ecs_cluster" {
+  value = aws_ecs_cluster.this.name
 }
 
-output "public_subnet_ids" {
-  description = "Staging public subnet IDs."
-  value       = aws_subnet.public[*].id
+output "ecs_services" {
+  value = { for k, s in aws_ecs_service.this : k => s.name }
 }
 
-output "private_subnet_ids" {
-  description = "Staging private subnet IDs."
-  value       = aws_subnet.private[*].id
+output "task_definition_families" {
+  value = { for k, t in aws_ecs_task_definition.this : k => t.family }
 }
 
-output "ecr_repository_urls" {
-  description = "Staging ECR repository URLs by service."
-  value       = { for service, repository in aws_ecr_repository.service : service => repository.repository_url }
+output "documents_bucket" {
+  value = aws_s3_bucket.documents.bucket
 }
 
-output "ecs_tasks_security_group_id" {
-  description = "Security group ID to attach to ECS tasks."
-  value       = aws_security_group.ecs_tasks.id
-}
-
-output "rds_security_group_id" {
-  description = "RDS security group ID; ingress is restricted to ECS tasks."
-  value       = aws_security_group.rds.id
+output "queue_urls" {
+  value = merge(
+    { for k, q in aws_sqs_queue.this : k => q.url },
+    { for k, q in aws_sqs_queue.dlq : "${k}-dlq" => q.url }
+  )
 }
 
 output "rds_endpoint" {
-  description = "Private RDS endpoint hostname."
-  value       = aws_db_instance.postgres.address
+  value = aws_db_instance.this.address
 }
 
-output "rds_port" {
-  description = "RDS PostgreSQL port."
-  value       = aws_db_instance.postgres.port
+output "secret_ids" {
+  description = "Set the OpenAI key with: aws secretsmanager put-secret-value --secret-id <OPENAI_API_KEY id> --secret-string sk-..."
+  value       = { for k, s in aws_secretsmanager_secret.this : k => s.name }
 }
 
-output "rds_master_user_secret_arn" {
-  description = "Secrets Manager ARN automatically created by RDS for the master credentials."
-  value       = aws_db_instance.postgres.master_user_secret[0].secret_arn
+output "github_deploy_role_arn" {
+  description = "Put this in the GitHub repository variable AWS_DEPLOY_ROLE_ARN."
+  value       = aws_iam_role.github_deploy.arn
+}
+
+output "cloudwatch_dashboard_url" {
+  value = "https://${var.aws_region}.console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards:name=${aws_cloudwatch_dashboard.this.dashboard_name}"
 }

@@ -21,8 +21,9 @@ vedanti_ai/
     run_benchmark.py             # compares 3 chunking strategies × topK 4/6/8
     benchmarks/                  # benchmark instructions and generated local results
   tests/
-  Dockerfile
 ```
+
+Image: `manali_devops/docker/python-service.Dockerfile`. The worker runs as a separate container (`ai-worker`) from the same image.
 
 ## Run
 ```bash

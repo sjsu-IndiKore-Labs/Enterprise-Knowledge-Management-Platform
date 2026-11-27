@@ -1,0 +1,8 @@
+[project]
+name = "ekm-fixture-ai-service"
+version = "0.0.1"
+requires-python = ">=3.11"
+dependencies = ["fastapi==0.115.4", "uvicorn==0.32.0"]
+
+[tool.setuptools]
+packages = ["app", "app.ingestion"]

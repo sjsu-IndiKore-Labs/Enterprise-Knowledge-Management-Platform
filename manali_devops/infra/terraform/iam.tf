@@ -1,142 +1,135 @@
-resource "aws_iam_role" "core_api_task" {
-  name               = "ekm-${var.environment}-core-api-task"
-  assume_role_policy = data.aws_iam_policy_document.ecs_task_assume_role.json
-}
-
-resource "aws_iam_role" "ai_service_task" {
-  name               = "ekm-${var.environment}-ai-service-task"
-  assume_role_policy = data.aws_iam_policy_document.ecs_task_assume_role.json
-}
-
-resource "aws_iam_role" "audit_service_task" {
-  name               = "ekm-${var.environment}-audit-service-task"
-  assume_role_policy = data.aws_iam_policy_document.ecs_task_assume_role.json
-}
-
-data "aws_iam_policy_document" "core_api_s3" {
+data "aws_iam_policy_document" "ecs_tasks_assume" {
   statement {
-    sid       = "ListDocumentBucket"
-    effect    = "Allow"
-    actions   = ["s3:ListBucket"]
-    resources = [data.aws_s3_bucket.documents.arn]
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["ecs-tasks.amazonaws.com"]
+    }
   }
+}
 
+# ---------------------------------------------------------------- execution role (pull images, logs, secrets)
+resource "aws_iam_role" "execution" {
+  name               = "${local.name}-ecs-execution"
+  assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume.json
+}
+
+resource "aws_iam_role_policy_attachment" "execution_managed" {
+  role       = aws_iam_role.execution.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+data "aws_iam_policy_document" "execution_secrets" {
   statement {
-    sid    = "ReadWriteDocuments"
-    effect = "Allow"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [for s in aws_secretsmanager_secret.this : s.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "execution_secrets" {
+  name   = "read-app-secrets"
+  role   = aws_iam_role.execution.id
+  policy = data.aws_iam_policy_document.execution_secrets.json
+}
+
+# ---------------------------------------------------------------- task roles (what the app code may do)
+resource "aws_iam_role" "task" {
+  for_each           = var.services
+  name               = "${local.name}-${each.key}-task"
+  assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume.json
+}
+
+data "aws_iam_policy_document" "task" {
+  for_each = var.services
+
+  # ECS Exec (aws ecs execute-command) for debugging
+  statement {
+    sid = "EcsExec"
     actions = [
-      "s3:DeleteObject",
-      "s3:GetObject",
-      "s3:PutObject"
+      "ssmmessages:CreateControlChannel", "ssmmessages:CreateDataChannel",
+      "ssmmessages:OpenControlChannel", "ssmmessages:OpenDataChannel",
     ]
-    resources = ["${data.aws_s3_bucket.documents.arn}/documents/*"]
+    resources = ["*"]
   }
 
-  statement {
-    sid    = "UseDocumentEncryptionKey"
-    effect = "Allow"
-    actions = [
-      "kms:Decrypt",
-      "kms:Encrypt",
-      "kms:GenerateDataKey"
-    ]
-    resources = [data.aws_kms_key.s3.arn]
+  # core-api: write/read/delete documents, send ingest + audit, consume status
+  dynamic "statement" {
+    for_each = (each.key == "core-api" &&
+      contains(keys(aws_sqs_queue.this), "document-ingest") &&
+    contains(keys(aws_sqs_queue.this), "audit-events")) ? [1] : []
+    content {
+      sid       = "DocumentsReadWrite"
+      actions   = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
+      resources = ["${aws_s3_bucket.documents.arn}/documents/*"]
+    }
   }
-}
-
-data "aws_iam_policy_document" "ai_service_s3" {
-  statement {
-    sid       = "ListDocumentBucket"
-    effect    = "Allow"
-    actions   = ["s3:ListBucket"]
-    resources = [data.aws_s3_bucket.documents.arn]
+  dynamic "statement" {
+    for_each = (each.key == "core-api" && contains(keys(aws_sqs_queue.this), "document-status")) ? [1] : []
+    content {
+      sid     = "SendIngestAndAudit"
+      actions = ["sqs:SendMessage", "sqs:GetQueueUrl", "sqs:GetQueueAttributes"]
+      resources = [
+        try(aws_sqs_queue.this["document-ingest"].arn, "*"),
+        try(aws_sqs_queue.this["audit-events"].arn, "*"),
+      ]
+    }
   }
-
-  statement {
-    sid       = "ReadDocuments"
-    effect    = "Allow"
-    actions   = ["s3:GetObject"]
-    resources = ["${data.aws_s3_bucket.documents.arn}/documents/*"]
-  }
-
-  statement {
-    sid       = "DecryptDocuments"
-    effect    = "Allow"
-    actions   = ["kms:Decrypt"]
-    resources = [data.aws_kms_key.s3.arn]
-  }
-}
-
-data "aws_iam_policy_document" "core_api_sqs" {
-  statement {
-    sid     = "PublishIngestAndAuditEvents"
-    effect  = "Allow"
-    actions = ["sqs:SendMessage"]
-    resources = [
-      aws_sqs_queue.main["document_ingest"].arn,
-      aws_sqs_queue.main["audit_events"].arn
-    ]
+  dynamic "statement" {
+    for_each = each.key == "core-api" ? [1] : []
+    content {
+      sid       = "ConsumeStatus"
+      actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility", "sqs:GetQueueUrl", "sqs:GetQueueAttributes"]
+      resources = [try(aws_sqs_queue.this["document-status"].arn, "*")]
+    }
   }
 
-  statement {
-    sid       = "ConsumeDocumentStatus"
-    effect    = "Allow"
-    actions   = ["sqs:DeleteMessage", "sqs:ReceiveMessage", "sqs:ChangeMessageVisibility", "sqs:GetQueueAttributes"]
-    resources = [aws_sqs_queue.main["document_status"].arn]
+  # ai-worker: read documents, consume ingest, send status
+  dynamic "statement" {
+    for_each = (contains(["ai-worker", "ai-service"], each.key) &&
+      contains(keys(aws_sqs_queue.this), "document-ingest") &&
+    contains(keys(aws_sqs_queue.this), "document-status")) ? [1] : []
+    content {
+      sid       = "DocumentsRead"
+      actions   = ["s3:GetObject"]
+      resources = ["${aws_s3_bucket.documents.arn}/documents/*"]
+    }
   }
-}
-
-data "aws_iam_policy_document" "ai_service_sqs" {
-  statement {
-    sid       = "ConsumeDocumentIngest"
-    effect    = "Allow"
-    actions   = ["sqs:DeleteMessage", "sqs:ReceiveMessage", "sqs:ChangeMessageVisibility", "sqs:GetQueueAttributes"]
-    resources = [aws_sqs_queue.main["document_ingest"].arn]
+  dynamic "statement" {
+    for_each = contains(["ai-worker", "ai-service"], each.key) ? [1] : []
+    content {
+      sid     = "ConsumeIngestSendStatus"
+      actions = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility", "sqs:SendMessage", "sqs:GetQueueUrl", "sqs:GetQueueAttributes"]
+      resources = [
+        try(aws_sqs_queue.this["document-ingest"].arn, "*"),
+        try(aws_sqs_queue.this["document-status"].arn, "*"),
+      ]
+    }
   }
 
-  statement {
-    sid       = "PublishDocumentStatus"
-    effect    = "Allow"
-    actions   = ["sqs:SendMessage"]
-    resources = [aws_sqs_queue.main["document_status"].arn]
+  # audit-service: consume audit events
+  dynamic "statement" {
+    for_each = (each.key == "audit-service" && contains(keys(aws_sqs_queue.this), "audit-events")) ? [1] : []
+    content {
+      sid       = "ConsumeAudit"
+      actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility", "sqs:GetQueueUrl", "sqs:GetQueueAttributes"]
+      resources = [try(aws_sqs_queue.this["audit-events"].arn, "*")]
+    }
   }
-}
 
-data "aws_iam_policy_document" "audit_service_sqs" {
-  statement {
-    sid       = "ConsumeAuditEvents"
-    effect    = "Allow"
-    actions   = ["sqs:DeleteMessage", "sqs:ReceiveMessage", "sqs:ChangeMessageVisibility", "sqs:GetQueueAttributes"]
-    resources = [aws_sqs_queue.main["audit_events"].arn]
+  # KMS for SSE-KMS objects
+  dynamic "statement" {
+    for_each = contains(["core-api", "ai-service", "ai-worker"], each.key) ? [1] : []
+    content {
+      sid       = "DocumentsKms"
+      actions   = each.key == "core-api" ? ["kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey"] : ["kms:Decrypt"]
+      resources = [aws_kms_key.documents.arn]
+    }
   }
 }
 
-resource "aws_iam_role_policy" "core_api_s3" {
-  name   = "ekm-${var.environment}-core-api-s3"
-  role   = aws_iam_role.core_api_task.id
-  policy = data.aws_iam_policy_document.core_api_s3.json
-}
-
-resource "aws_iam_role_policy" "ai_service_s3" {
-  name   = "ekm-${var.environment}-ai-service-s3"
-  role   = aws_iam_role.ai_service_task.id
-  policy = data.aws_iam_policy_document.ai_service_s3.json
-}
-
-resource "aws_iam_role_policy" "core_api_sqs" {
-  name   = "ekm-${var.environment}-core-api-sqs"
-  role   = aws_iam_role.core_api_task.id
-  policy = data.aws_iam_policy_document.core_api_sqs.json
-}
-
-resource "aws_iam_role_policy" "ai_service_sqs" {
-  name   = "ekm-${var.environment}-ai-service-sqs"
-  role   = aws_iam_role.ai_service_task.id
-  policy = data.aws_iam_policy_document.ai_service_sqs.json
-}
-
-resource "aws_iam_role_policy" "audit_service_sqs" {
-  name   = "ekm-${var.environment}-audit-service-sqs"
-  role   = aws_iam_role.audit_service_task.id
-  policy = data.aws_iam_policy_document.audit_service_sqs.json
+resource "aws_iam_role_policy" "task" {
+  for_each = var.services
+  name     = "app-permissions"
+  role     = aws_iam_role.task[each.key].id
+  policy   = data.aws_iam_policy_document.task[each.key].json
 }

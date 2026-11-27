@@ -1,0 +1,12 @@
+# Copy to staging.tfvars (git-ignored) and adjust.
+environment        = "staging"
+aws_region         = "us-west-2"
+documents_bucket_name = "ekm-documents-staging"
+alarm_email        = "you@example.com"
+monthly_budget_usd = 150   # ~$130/month if left running 24/7; use `make aws-sleep` when idle
+use_nat_gateway    = false
+cpu_architecture   = "X86_64"
+# certificate_arn  = "arn:aws:acm:us-west-2:123456789012:certificate/..."
+# app_domain       = "ekm.example.com"
+# create_github_oidc_provider = false   # if the account already has the GitHub OIDC provider
+# documents_reader_account_ids = ["123456789012"]   # optional: other accounts that may read the documents bucket

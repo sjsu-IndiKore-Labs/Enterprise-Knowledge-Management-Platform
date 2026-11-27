@@ -69,7 +69,7 @@ resources/               ← sample corpus (PDF/DOCX), seed users, RAG eval set,
 ayushi_backend/          ← Spring Boot: core-api + audit-service
 changhyun_frontend/      ← Next.js + TypeScript web portal
 vedanti_ai/              ← Python FastAPI ai-service: ingestion worker + retrieval + answer synthesis
-manali_devops/           ← Dockerfiles helpers, LocalStack init, Jenkins, AWS infra (Terraform), load tests
+manali_devops/           ← Dockerfile templates for ALL services, LocalStack init, Terraform (AWS ECS), CI/CD scripts, Jenkins, devops tests & runbooks
 docker-compose.yml       ← local stack (owned by Manali)
 .env.example             ← every env var name used by any service
 Makefile                 ← common commands (make help)
@@ -80,10 +80,10 @@ Makefile                 ← common commands (make help)
 ```bash
 cp .env.example .env          # fill OPENAI_API_KEY or set AI_PROVIDER=fake
 make up                       # postgres+pgvector and localstack (S3 + SQS)
-make migrate-raw              # apply DB schema directly (only until core-api/Flyway exists)
-make seed                     # dev departments + users (password in resources/seed/README.md)
+make up-apps                  # build and run every service; core-api's Flyway creates the schema + dev users
 make mock-core-api            # frontend can develop against a mocked backend on :4010
-make up-apps                  # build and run every service that exists so far
+# Upgrading from an older checkout? `make reset` once (deletes local data): DBs built with
+# `make migrate-raw` are incompatible with core-api's Flyway migrations.
 ```
 
 ## 6. Before you finish a session
