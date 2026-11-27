@@ -12,7 +12,7 @@ pre-filtered by the `allowedDepartments` core-api sends. (3) **Answering**: grou
 from context", `[n]` citations, "not found" below a similarity threshold, streamed as SSE. (4) **Evaluation & knowledge gaps**:
 measure faithfulness/relevance/recall on the golden set and decide `answered` / `confidence` for gap detection.
 
-## Current implementation status — Nov 26, 2026
+## Current implementation status — Nov 27, 2026
 
 Verified locally with the fake provider: contract-shaped FastAPI routes and
 errors, token authentication, request IDs, PDF/DOCX extraction and cleaning,
@@ -24,12 +24,12 @@ reindex queuing, Docker configuration, twelve automated tests, the 40-question
 evaluator, and the 3-strategy chunking benchmark. Contract lint and event-schema
 validation also pass.
 
-Still requiring the shared integration environment: run against
-Postgres/pgvector and LocalStack, validate Docker Compose, run with real
-OpenAI providers, deploy the SQS worker as a separate process/container, and
-complete staging evaluation/cost reporting. These cannot be verified locally
-because Docker is unavailable in this environment; the code paths are complete
-and tested with offline adapters.
+Local offline tests now include a corpus runner that uses the worker's ingestion
+pipeline method and supports simulated department access. Full platform
+integration is still pending: the current develop Compose file does not define
+the worker service, and the latest backend upload path must be verified against
+the current S3/SQS contracts. Staging AWS access and production-provider
+evaluation also remain unverified.
 
 ## You PROVIDE
 | To | What | Contract |
@@ -91,4 +91,7 @@ Matches `ai-service.yaml` + event schemas exactly (camelCase), department filter
 works with `AI_PROVIDER=fake`, unit tests for extractors/chunker/retriever, no document text or API key in logs.
 
 ## Blocked / waiting on
-- _none yet_
+- See [integration handoff](INTEGRATION_HANDOFF.md) for November 26 verification results and remaining responsibilities.
+- Full local platform testing requires an AI worker service in Compose and current Core API integration; Docker/Colima is installed, but the current compose does not expose that complete flow.
+- Staging runtime read and authenticated E2E checks remain unverified.
+- November 27: corrected POSTGRES environment naming/TLS, failed ingestion acknowledgement, generated-refusal/citation handling, and hyphen/space tokenization in offline retrieval. Twenty-one tests pass; actual database, queue and authenticated application integration remain pending.
