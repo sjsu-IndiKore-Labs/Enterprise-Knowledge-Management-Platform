@@ -5,6 +5,8 @@ from __future__ import annotations
 from time import monotonic
 from uuid import UUID
 
+import boto3
+
 from app.config import Settings
 from app.db import InMemoryChunkStore
 from app.models import (
@@ -18,7 +20,12 @@ from app.models import (
 )
 from app.rag.embeddings import CachedEmbeddings, FakeEmbeddings, OpenAIEmbeddings
 from app.rag.generator import FakeLLM, OpenAILLM
-from app.rag.guardrails import NOT_FOUND_ANSWER, looks_like_prompt_injection
+from app.rag.guardrails import (
+    NOT_FOUND_ANSWER,
+    looks_like_prompt_injection,
+    referenced_citations,
+)
+from app.rag.query import normalize_query
 
 
 class RagService:
@@ -41,6 +48,26 @@ class RagService:
         self.store.replace_version(chunks[0].version_id, chunks, embeddings, previous_version_id)
         return len(chunks)
 
+    def reindex(self, document_id: UUID, version_id: UUID, trace_id: str) -> None:
+        """Requeue a version after rebuilding its event from the read-only DB tables."""
+        event = self.store.get_ingest_event(document_id, version_id, trace_id)
+        if event is None:
+            raise LookupError("DOCUMENT_VERSION_NOT_FOUND")
+        kwargs = {"region_name": self.settings.aws_region}
+        if self.settings.aws_endpoint_url:
+            kwargs.update(
+                endpoint_url=self.settings.aws_endpoint_url,
+                aws_access_key_id=self.settings.aws_access_key_id,
+                aws_secret_access_key=self.settings.aws_secret_access_key,
+            )
+        sqs = boto3.client("sqs", **kwargs)
+        queue_url = sqs.get_queue_url(QueueName=self.settings.sqs_document_ingest_queue)["QueueUrl"]
+        sqs.send_message(
+            QueueUrl=queue_url,
+            MessageBody=event.model_dump_json(by_alias=True),
+            MessageAttributes={"requeued": {"DataType": "String", "StringValue": "true"}},
+        )
+
     @staticmethod
     def rewrite_query(query: str, history) -> str:
         """Resolve simple follow-ups without sending conversation text to retrieval blindly."""
@@ -61,9 +88,10 @@ class RagService:
 
     def search(self, request: SearchRequest) -> SearchResponse:
         started = monotonic()
-        query_embedding = self.embeddings.embed([request.query])[0]
+        retrieval_query = normalize_query(request.query)
+        query_embedding = self.embeddings.embed([retrieval_query])[0]
         rows = self.store.search(
-            request.query,
+            retrieval_query,
             query_embedding,
             request.allowed_departments,
             request.mode,
@@ -117,7 +145,11 @@ class RagService:
         )
         results = search_response.results
         confidence = results[0].score if results else 0.0
-        if confidence < self.settings.rag_min_similarity:
+        # A fake embedding can give a marginally plausible score to unrelated
+        # text. Require meaningful lexical evidence unless similarity is strong.
+        keyword_evidence = results and results[0].keyword_score > 0
+        strong_semantic_evidence = results and results[0].semantic_score >= 0.55
+        if confidence < self.settings.rag_min_similarity or not (keyword_evidence or strong_semantic_evidence):
             return AnswerResponse(
                 queryId=request.query_id,
                 answer=NOT_FOUND_ANSWER,
@@ -126,8 +158,8 @@ class RagService:
                 citations=[],
                 latencyMs=int((monotonic() - started) * 1000),
             )
-        generated = self.generator.generate(request.query, results)
-        citations = [
+        generated = self.generator.generate(retrieval_query, results)
+        all_citations = [
             Citation(
                 citationNumber=index,
                 documentId=result.document_id,
@@ -142,10 +174,15 @@ class RagService:
             )
             for index, result in enumerate(results, start=1)
         ]
+        used_indexes = referenced_citations(generated.text, len(all_citations))
+        answered = bool(used_indexes) and NOT_FOUND_ANSWER.lower() not in generated.text.lower()
+        if not answered:
+            used_indexes = []
+        citations = [all_citations[index - 1] for index in used_indexes]
         return AnswerResponse(
             queryId=request.query_id,
-            answer=generated.text,
-            answered=True,
+            answer=generated.text if answered else NOT_FOUND_ANSWER,
+            answered=answered,
             confidence=round(confidence, 6),
             citations=citations,
             usage=Usage(

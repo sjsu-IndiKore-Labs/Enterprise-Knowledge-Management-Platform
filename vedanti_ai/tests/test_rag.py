@@ -39,6 +39,25 @@ def test_injection_is_refused_without_generation():
     assert answer.answered is False
 
 
+def test_unrelated_question_is_not_answered_from_an_arbitrary_chunk():
+    service = RagService(Settings(ai_provider="fake", rag_min_similarity=0.35))
+    chunk = Chunk(
+        uuid4(), uuid4(), 1, DepartmentCode.HR, DocumentCategory.POLICY,
+        "PTO", 0, "Employees receive paid leave.", 5, 1, None,
+    )
+    service.index_chunks([chunk])
+    answer = service.answer(
+        AnswerRequest(
+            queryId=uuid4(),
+            query="What is the weather on Mars today?",
+            allowedDepartments=[DepartmentCode.HR, DepartmentCode.GENERAL],
+        )
+    )
+    assert answer.answer == NOT_FOUND_ANSWER
+    assert answer.answered is False
+    assert answer.citations == []
+
+
 def test_follow_up_query_uses_previous_user_question():
     rewritten = RagService.rewrite_query(
         "And how much notice do I need?",

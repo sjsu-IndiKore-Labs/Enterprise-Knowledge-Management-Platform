@@ -41,3 +41,15 @@ def test_authorized_search_and_stream_routes_have_contract_shape():
     assert stream.status_code == 200
     assert "event: citations" in stream.text
     assert "event: done" in stream.text
+
+
+def test_reindex_requires_database_backing_store():
+    client = TestClient(app)
+    headers = {"X-Internal-Token": get_settings().internal_service_token}
+    response = client.post(
+        "/internal/v1/documents/00000000-0000-0000-0000-000000000001/reindex",
+        headers=headers,
+        json={"versionId": "00000000-0000-0000-0000-000000000002"},
+    )
+    assert response.status_code == 503
+    assert response.json()["message"] == "REINDEX_REQUIRES_DATABASE"

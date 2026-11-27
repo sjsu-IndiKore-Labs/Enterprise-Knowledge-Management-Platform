@@ -119,6 +119,15 @@ def run(root: Path) -> dict:
             any(source_matches(citation, expected, titles[expected["docId"]]) for citation in answer.citations)
             for expected in expected_sources
         ) if expected_sources else True
+        retrieval_matches = sum(
+            any(
+                result.document_title == titles[expected["docId"]]
+                and ("page" not in expected or result.page_number == expected["page"])
+                and ("version" not in expected or result.version == expected["version"])
+                for result in search.results
+            )
+            for expected in expected_sources
+        )
         forbidden_doc_hit = any(
             any(citation.document_title == titles[doc_id] for citation in answer.citations)
             for doc_id in question.get("forbiddenDocIds", [])
@@ -131,6 +140,8 @@ def run(root: Path) -> dict:
             "answeredCorrectly": answer.answered == expected_answered,
             "expectedTextPresent": expected_text_ok,
             "citationSourcesCorrect": citation_ok,
+            "retrievalMatchedSources": retrieval_matches,
+            "retrievalExpectedSources": len(expected_sources),
             "forbiddenTextHit": forbidden_text_hit,
             "forbiddenDocumentHit": forbidden_doc_hit,
             "answer": answer.answer,
@@ -148,6 +159,10 @@ def run(root: Path) -> dict:
         "answeredAccuracy": sum(item["answeredCorrectly"] for item in results) / total,
         "answerTextAccuracy": sum(item["expectedTextPresent"] for item in answered) / len(answered),
         "citationAccuracy": sum(item["citationSourcesCorrect"] for item in answered) / len(answered),
+        "retrievalRecallAtK": (
+            sum(item["retrievalMatchedSources"] for item in results if item["expectedAnswered"])
+            / sum(item["retrievalExpectedSources"] for item in results if item["expectedAnswered"])
+        ),
         "refusalAccuracy": sum(item["answeredCorrectly"] for item in refused) / len(refused),
         "departmentLeakage": sum(item["forbiddenTextHit"] or item["forbiddenDocumentHit"] for item in results),
         "p95LatencyMs": p95,

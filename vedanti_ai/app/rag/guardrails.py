@@ -23,3 +23,12 @@ def keep_valid_citations(answer: str, citation_count: int) -> str:
         return match.group(0) if 1 <= number <= citation_count else ""
 
     return re.sub(r"\[(\d+)\]", replace, answer)
+
+
+def referenced_citations(answer: str, citation_count: int) -> list[int]:
+    """Return only citation indexes actually referenced by the answer."""
+    return sorted({
+        number
+        for number in (int(value) for value in re.findall(r"\[(\d+)\]", answer))
+        if 1 <= number <= citation_count
+    })
