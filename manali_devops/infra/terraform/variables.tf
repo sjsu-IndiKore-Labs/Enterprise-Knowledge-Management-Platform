@@ -193,3 +193,13 @@ variable "app_config" {
     EMBEDDING_CACHE_TTL_SECONDS = "3600"
   }
 }
+
+variable "documents_reader_account_ids" {
+  description = "Other AWS account IDs allowed to read the documents bucket (ListBucket/GetObject under documents/). Empty = none."
+  type        = list(string)
+  default     = []
+  validation {
+    condition     = alltrue([for id in var.documents_reader_account_ids : can(regex("^[0-9]{12}$", id))])
+    error_message = "documents_reader_account_ids must be 12-digit AWS account IDs."
+  }
+}

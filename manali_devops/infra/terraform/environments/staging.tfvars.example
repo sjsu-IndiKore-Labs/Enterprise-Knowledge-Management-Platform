@@ -9,3 +9,4 @@ cpu_architecture   = "X86_64"
 # certificate_arn  = "arn:aws:acm:us-west-2:123456789012:certificate/..."
 # app_domain       = "ekm.example.com"
 # create_github_oidc_provider = false   # if the account already has the GitHub OIDC provider
+# documents_reader_account_ids = ["123456789012"]   # optional: other accounts that may read the documents bucket

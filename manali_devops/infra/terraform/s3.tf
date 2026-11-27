@@ -89,6 +89,22 @@ data "aws_iam_policy_document" "documents_bucket" {
       values   = ["false"]
     }
   }
+
+  # Optional read-only access for other team members' AWS accounts (e.g. Vedanti's local worker testing).
+  # Objects are SSE-KMS encrypted, so GetObject also needs kms:Decrypt on aws_kms_key.documents.
+  dynamic "statement" {
+    for_each = length(var.documents_reader_account_ids) > 0 ? [1] : []
+    content {
+      sid       = "VedantiAccountReadDocuments"
+      effect    = "Allow"
+      actions   = ["s3:ListBucket", "s3:GetBucketLocation", "s3:GetObject"]
+      resources = [aws_s3_bucket.documents.arn, "${aws_s3_bucket.documents.arn}/documents/*"]
+      principals {
+        type        = "AWS"
+        identifiers = [for id in var.documents_reader_account_ids : "arn:aws:iam::${id}:root"]
+      }
+    }
+  }
 }
 
 resource "aws_s3_bucket_policy" "documents" {

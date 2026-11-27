@@ -124,7 +124,7 @@ tf-apply: ## apply the saved plan for $(TF_ENV)
 	cd $(TF_DIR) && terraform apply $(TF_ENV).tfplan
 
 deploy: ## Build, push and deploy TAG (default HEAD) to $(TF_ENV) from your machine (needs AWS creds)
-	$(eval REGISTRY := $(shell aws sts get-caller-identity --query Account --output text).dkr.ecr.$${AWS_REGION:-us-west-2}.amazonaws.com)
+	$(eval REGISTRY := $(shell aws sts get-caller-identity --query Account --output text).dkr.ecr.$(or $(AWS_REGION),us-west-2).amazonaws.com)
 	aws ecr get-login-password | docker login --username AWS --password-stdin $(REGISTRY)
 	ECR_REGISTRY=$(REGISTRY) manali_devops/scripts/build-push.sh $(TF_ENV) $(TAG) | tee /tmp/ekm-build.log
 	manali_devops/scripts/ecs-deploy.sh $(TF_ENV) $(TAG) $$(grep '^PUSHED:' /tmp/ekm-build.log | cut -d' ' -f2- | sed 's/ai-service/ai-service ai-worker/')
