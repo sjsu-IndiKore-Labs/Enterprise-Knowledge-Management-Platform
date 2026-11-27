@@ -10,7 +10,7 @@ related: manali_devops/docs/local-development.md, manali_devops/tests/smoke/demo
 # Staging is live with current code, and everyone must reset their local DB once
 
 ## Context
-**Staging** (current code from `develop` + `manali/staging-infra-fixes`, deployed 2026-11-27):
+**Staging** (runs the code in PR #43 = current `develop` + infra fixes, deployed 2026-11-27):
 `http://ekm-staging-800774594.us-west-2.elb.amazonaws.com`
 - Web, login, `/users/me` and departments work through the ALB. Seed users and password are the same as local (`resources/seed/users.json`).
 - Chat returns 502 until the real OpenAI key is in Secrets Manager (Manali, today).
