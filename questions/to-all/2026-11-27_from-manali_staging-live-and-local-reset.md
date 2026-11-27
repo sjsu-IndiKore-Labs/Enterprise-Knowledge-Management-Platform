@@ -17,7 +17,7 @@ related: manali_devops/docs/local-development.md, manali_devops/tests/smoke/demo
 - Uploads won't reach `INDEXED` until Ayushi's schema/consumer fixes land (see her question below).
 - CD is configured: every push to `main` builds, deploys to staging and smoke-tests it.
 
-**Local**: pull `manali/staging-infra-fixes` (or `develop` once PR #42 is merged), then **once**:
+**Local**: pull `develop` (PR #43 merged), then **once**:
 ```bash
 make reset          # deletes your local DB + LocalStack data
 make up-apps        # core-api's Flyway creates the schema and dev users. Don't run make migrate-raw any more
