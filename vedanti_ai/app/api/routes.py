@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from sse_starlette.sse import EventSourceResponse
 
-from app.models import AnswerRequest, SearchRequest
+from app.models import AnswerRequest, ReindexRequest, SearchRequest
 from app.rag.service import RagService
 from app.security import require_internal_token
 
@@ -46,5 +48,22 @@ def create_router(service: RagService) -> APIRouter:
             }
 
         return EventSourceResponse(events())
+
+    @router.post("/internal/v1/documents/{documentId}/reindex", status_code=202)
+    async def reindex(
+        document_id: Annotated[UUID, Path(alias="documentId")],
+        request: ReindexRequest = ...,
+        http_request: Request = ...,
+    ):
+        trace_id = getattr(http_request.state, "request_id", "unknown")
+        try:
+            service.reindex(document_id, request.version_id, trace_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail="REINDEX_QUEUE_UNAVAILABLE") from exc
+        return {"status": "REQUEUED", "documentId": str(document_id), "versionId": str(request.version_id)}
 
     return router

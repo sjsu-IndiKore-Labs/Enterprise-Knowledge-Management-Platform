@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from uuid import UUID
 
 from app.ingestion.chunker import Chunk
-from app.models import DepartmentCode, DocumentCategory, SearchMode
+from app.models import DepartmentCode, DocumentCategory, IngestEvent, SearchMode
 
 
 @dataclass(frozen=True)
@@ -46,6 +47,9 @@ class InMemoryChunkStore:
 
     def health(self) -> str:
         return "UP"
+
+    def get_ingest_event(self, document_id: UUID, version_id: UUID, trace_id: str) -> IngestEvent:
+        raise RuntimeError("REINDEX_REQUIRES_DATABASE")
 
     def replace_version(self, version_id: UUID, chunks: list[Chunk], embeddings: list[list[float]], previous_version_id: UUID | None = None) -> None:
         self.mark_previous_version_not_current(previous_version_id)
@@ -111,6 +115,45 @@ class PostgresChunkStore:
             return "UP"
         except Exception:  # noqa: BLE001 - health must return a response when DB is unavailable.
             return "DOWN"
+
+    def get_ingest_event(self, document_id: UUID, version_id: UUID, trace_id: str) -> IngestEvent | None:
+        sql = """
+        SELECT d.title, d.department_code, d.category,
+               v.id, v.version, v.s3_bucket, v.s3_key, v.content_type,
+               v.original_filename, v.size_bytes, v.uploaded_by,
+               previous.id
+        FROM documents AS d
+        JOIN document_versions AS v ON v.document_id = d.id
+        LEFT JOIN document_versions AS previous
+          ON previous.document_id = v.document_id
+         AND previous.version = v.version - 1
+        WHERE d.id = %s AND v.id = %s AND d.deleted_at IS NULL
+        """
+        with self.pool.connection() as connection, connection.cursor() as cursor:
+            cursor.execute(sql, (document_id, version_id))
+            row = cursor.fetchone()
+        if row is None:
+            return None
+        title, department, category, version_id, version, bucket, key, content_type, filename, size_bytes, uploaded_by, previous_id = row
+        return IngestEvent(
+            eventId=__import__("uuid").uuid4(),
+            eventType="DOCUMENT_INGEST_REQUESTED",
+            occurredAt=datetime.now(UTC).isoformat(),
+            traceId=trace_id,
+            documentId=document_id,
+            versionId=version_id,
+            version=version,
+            previousVersionId=previous_id,
+            s3Bucket=bucket,
+            s3Key=key,
+            contentType=content_type,
+            originalFilename=filename,
+            sizeBytes=size_bytes,
+            title=title,
+            department=DepartmentCode(department),
+            category=DocumentCategory(category),
+            uploadedBy=uploaded_by,
+        )
 
     def replace_version(self, version_id: UUID, chunks: list[Chunk], embeddings: list[list[float]], previous_version_id: UUID | None = None) -> None:
         insert_sql = """

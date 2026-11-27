@@ -25,8 +25,8 @@
     {
       "strategy": "section_aware",
       "topK": 4,
-      "recallAtK": 0.7097,
-      "matchedSources": 22,
+      "recallAtK": 0.6774,
+      "matchedSources": 21,
       "expectedSources": 31
     },
     {

@@ -5,6 +5,8 @@ from __future__ import annotations
 from time import monotonic
 from uuid import UUID
 
+import boto3
+
 from app.config import Settings
 from app.db import InMemoryChunkStore
 from app.models import (
@@ -40,6 +42,26 @@ class RagService:
         embeddings = self.embeddings.embed([chunk.content for chunk in chunks])
         self.store.replace_version(chunks[0].version_id, chunks, embeddings, previous_version_id)
         return len(chunks)
+
+    def reindex(self, document_id: UUID, version_id: UUID, trace_id: str) -> None:
+        """Requeue a version after rebuilding its event from the read-only DB tables."""
+        event = self.store.get_ingest_event(document_id, version_id, trace_id)
+        if event is None:
+            raise LookupError("DOCUMENT_VERSION_NOT_FOUND")
+        kwargs = {"region_name": self.settings.aws_region}
+        if self.settings.aws_endpoint_url:
+            kwargs.update(
+                endpoint_url=self.settings.aws_endpoint_url,
+                aws_access_key_id=self.settings.aws_access_key_id,
+                aws_secret_access_key=self.settings.aws_secret_access_key,
+            )
+        sqs = boto3.client("sqs", **kwargs)
+        queue_url = sqs.get_queue_url(QueueName=self.settings.sqs_document_ingest_queue)["QueueUrl"]
+        sqs.send_message(
+            QueueUrl=queue_url,
+            MessageBody=event.model_dump_json(by_alias=True),
+            MessageAttributes={"requeued": {"DataType": "String", "StringValue": "true"}},
+        )
 
     @staticmethod
     def rewrite_query(query: str, history) -> str:

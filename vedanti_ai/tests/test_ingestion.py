@@ -34,3 +34,26 @@ def test_docx_or_pdf_error_codes_are_contract_names():
         assert str(error) == "UNSUPPORTED_FORMAT"
     else:
         raise AssertionError("unsupported format should fail")
+
+
+def test_docx_preserves_table_order_and_heading_context(tmp_path):
+    from app.ingestion.extract import extract_docx
+    from docx import Document
+
+    document = Document()
+    document.add_heading("Benefits", level=1)
+    document.add_paragraph("Paragraph before the table")
+    table = document.add_table(rows=1, cols=2)
+    table.rows[0].cells[0].text = "Benefit"
+    table.rows[0].cells[1].text = "Enrollment"
+    document.add_paragraph("Paragraph after the table")
+    path = tmp_path / "ordered.docx"
+    document.save(path)
+
+    segments = extract_docx(path)
+    assert [segment.text for segment in segments] == [
+        "Paragraph before the table",
+        "Benefit | Enrollment",
+        "Paragraph after the table",
+    ]
+    assert all(segment.section_title == "Benefits" for segment in segments)

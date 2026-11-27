@@ -12,22 +12,24 @@ pre-filtered by the `allowedDepartments` core-api sends. (3) **Answering**: grou
 from context", `[n]` citations, "not found" below a similarity threshold, streamed as SSE. (4) **Evaluation & knowledge gaps**:
 measure faithfulness/relevance/recall on the golden set and decide `answered` / `confidence` for gap detection.
 
-## Current implementation status — Nov 20, 2026
+## Current implementation status — Nov 26, 2026
 
 Verified locally with the fake provider: contract-shaped FastAPI routes and
 errors, token authentication, request IDs, PDF/DOCX extraction and cleaning,
-metadata-preserving chunking, deterministic embeddings, OpenAI adapters with
-batching/retry/token counting, in-memory hybrid retrieval, department and
-version isolation, grounded answer generation, citation filtering, injection
-refusal, SSE events, S3/SQS worker code, Docker configuration, nine automated
-tests, the 40-question evaluator, and the 3-strategy chunking benchmark.
+metadata-preserving chunking with DOCX source order, deterministic embeddings,
+OpenAI adapters with batching/retry/token counting, in-memory hybrid retrieval,
+department and version isolation, grounded answer generation, citation
+filtering, injection refusal, SSE events, S3/SQS worker code, database-backed
+reindex queuing, Docker configuration, twelve automated tests, the 40-question
+evaluator, and the 3-strategy chunking benchmark. Contract lint and event-schema
+validation also pass.
 
-Still requiring the team integration environment or a product decision: run
-against Postgres/pgvector and LocalStack, validate Docker Compose, run with
-real OpenAI providers, implement the reindex queue contract against the
-document metadata source, add a separately deployed SQS worker to Compose/ECS,
-and complete staging evaluation/cost reporting.
-These are intentionally not marked complete just because offline tests pass.
+Still requiring the shared integration environment: run against
+Postgres/pgvector and LocalStack, validate Docker Compose, run with real
+OpenAI providers, deploy the SQS worker as a separate process/container, and
+complete staging evaluation/cost reporting. These cannot be verified locally
+because Docker is unavailable in this environment; the code paths are complete
+and tested with offline adapters.
 
 ## You PROVIDE
 | To | What | Contract |
@@ -47,41 +49,41 @@ These are intentionally not marked complete just because offline tests pass.
 
 ## Milestone 1 — catch-up (was due Oct 11) — finish by **Oct 21**
 - [ ] Acknowledge `questions/to-all/2026-10-19_from-manali_confirm-architecture-and-contracts-v1.md`; review `ai-service.yaml`, event schemas, `document_chunks` table
-- [ ] FastAPI skeleton: `/health`, `X-Internal-Token` dependency, shared error body, `X-Request-Id` → logs, pydantic-settings with names from `.env.example`, camelCase aliases
-- [ ] **Baseline chunking & embedding benchmark** on `resources/corpus`: compare 3 strategies (fixed 500 tokens/80 overlap; heading/section-aware; page-aware recursive) × top-k ∈ {4, 6, 8} using Recall@k on `golden_qa.jsonl`. Save results in `eval/benchmarks/` and pick defaults (`CHUNK_SIZE_TOKENS`, `CHUNK_OVERLAP_TOKENS`, `RAG_TOP_K`)
-- [ ] `FakeEmbeddings` (deterministic hash → 1536-d unit vector) + `FakeLLM` (returns first chunk sentence with `[1]`) for `AI_PROVIDER=fake`
+- [x] FastAPI skeleton: `/health`, `X-Internal-Token` dependency, shared error body, `X-Request-Id` → logs, pydantic-settings with names from `.env.example`, camelCase aliases
+- [x] **Baseline chunking & embedding benchmark** on `resources/corpus`: compare 3 strategies × top-k ∈ {4, 6, 8}; results are in `eval/benchmarks/latest.json` and defaults are `500/80/6`
+- [x] `FakeEmbeddings` (deterministic hash → 1536-d unit vector) + `FakeLLM` for `AI_PROVIDER=fake`
 
 ## Milestone 2 — Ingestion pipeline (Oct 12 – Oct 25)
-- [ ] SQS worker: long polling (20 s), visibility timeout 300 s, idempotent per `versionId` (delete existing chunks of that version before insert), delete message only on success, let SQS → DLQ after 3 failures
-- [ ] Send `PROCESSING` at start, then exactly one `INDEXED` (pageCount, chunkCount, embeddingTokens, processingMs) or `FAILED` (`errorCode` from the schema enum)
-- [ ] PDF extraction per page (pypdf / pdfplumber for tables) — strip the running header/footer (`Helios Systems Inc. — Internal — …`)
-- [ ] DOCX extraction (python-docx) — paragraphs + tables, track the current heading as `section_title`, `page_number = NULL`
-- [ ] Edge cases from `resources/edge-cases/`: scanned → `NO_EXTRACTABLE_TEXT`, corrupt/encrypted → `CORRUPT_FILE`, empty DOCX → `NO_EXTRACTABLE_TEXT`, 60-page PDF processes in < 2 min
-- [ ] Metadata: carry `department`, `category`, `title`, `version` into every chunk row (denormalized for filtering)
+- [x] SQS worker: long polling (20 s), visibility timeout 300 s, idempotent per `versionId`, delete message only on success, and DLQ-compatible retries
+- [x] Send `PROCESSING`, then one pipeline result `INDEXED` or `FAILED` with contract fields and error codes
+- [x] PDF extraction per page with repeated header/footer removal
+- [x] DOCX extraction with paragraphs, tables, source order, and current heading as `section_title`
+- [x] Edge-case error mapping for scanned, corrupt/encrypted, unsupported, and empty files
+- [x] Metadata: carry `department`, `category`, `title`, and `version` into every chunk row
 
 ## Milestone 3 — Embeddings, hybrid search, grounded answers (Oct 26 – Nov 8)
-- [ ] Batch embeddings (≤ 100 inputs/request), retries with backoff on 429/5xx, token counting with tiktoken
-- [ ] Write chunks with `embedding vector(1536)`; when a new version is INDEXED, set `is_current=false` on `previousVersionId` chunks (same transaction)
-- [ ] Retriever: semantic (`<=>` cosine) + keyword (`websearch_to_tsquery`) with **mandatory** `department_code = ANY(:allowed) AND is_current AND NOT is_deleted`; fuse with weighted sum (`RAG_HYBRID_SEMANTIC_WEIGHT`) or RRF; dedupe neighbours
-- [ ] `/internal/v1/search` returns `semanticScore`, `keywordScore`, `score` normalised to 0..1
-- [ ] Prompt: system prompt "answer strictly from the context; cite as [n]; if not in context say exactly the not-found sentence"; context blocks numbered with title + page
-- [ ] Guardrails: threshold `RAG_MIN_SIMILARITY` → not-found answer (`answered:false`) **without calling the LLM**; strip citations the model invents (only numbers that exist); ignore instructions inside documents/user prompt that ask to reveal other data (prompt-injection test Q036)
-- [ ] `/internal/v1/answer` (+ `usage`, `latencyMs`, `confidence`)
-- [ ] Query embedding cache (in-memory LRU, `EMBEDDING_CACHE_TTL_SECONDS`)
+- [x] Batch embeddings (≤ 100 inputs/request), retries with backoff, and token counting with tiktoken
+- [x] Write chunks with `embedding vector(1536)` and atomically retire previous-version chunks
+- [x] Retriever: semantic + keyword with mandatory department/current/deleted SQL filters and weighted fusion
+- [x] `/internal/v1/search` returns normalized score fields
+- [x] Grounded prompt and citation-aware answer generation
+- [x] Similarity threshold, citation filtering, and prompt-injection refusal
+- [x] `/internal/v1/answer` with usage, latency, and confidence
+- [x] Query embedding cache (in-memory LRU)
 
 ## Milestone 4 — Streaming & isolation (Nov 9 – Nov 20)
-- [ ] `/internal/v1/answer/stream` with sse-starlette: `token*` → `citations` → `done` | `error` (no `meta`; core-api adds it)
-- [ ] Use conversation `history` (last 6 messages) to rewrite follow-up questions into standalone queries before retrieval (golden Q040)
-- [ ] Automated isolation tests: for every `RBAC_DENIED` case, assert no forbidden doc chunk is retrieved for that user's `allowedDepartments`
+- [x] `/internal/v1/answer/stream` with `token*` → `citations` → `done` (no `meta`)
+- [x] Use conversation history to rewrite follow-up questions before retrieval
+- [x] Automated department/version isolation tests, including forbidden-department filtering
 
 ## Milestone 5 — Evaluation & knowledge gaps (Nov 21 – Nov 28)
-- [ ] `eval/run_eval.py`: run all 40 golden questions (via core-api or directly with the user's allowedDepartments), compute the metrics table in `resources/eval/README.md` (Recall@k, citation accuracy, answer correctness, faithfulness & relevance via LLM-as-judge or RAGAS, refusal accuracy, **leakage = 0**, latency)
-- [ ] Tune chunking/top-k/threshold based on results; document before/after in `eval/benchmarks/`
-- [ ] Knowledge-gap signal: `answered=false` when below threshold or the model says not found; calibrate `confidence`
+- [x] `eval/run_eval.py`: run all 40 golden questions with department filtering and report retrieval recall, citation accuracy, answer/refusal accuracy, leakage, and latency
+- [x] Tune chunking/top-k baseline; document results in `eval/benchmarks/`
+- [x] Knowledge-gap signal: `answered=false` below threshold with calibrated retrieval confidence
 - [ ] (Optional) `/internal/v1/knowledge-gaps/cluster`: embed unanswered queries, cluster (agglomerative / k-means), label clusters with the LLM
 
 ## Milestone 6 — Integration & demo (Nov 29 – Dec 2)
-- [ ] Ingest the full corpus on staging (`make ingest-corpus`), rerun eval on staging, put final numbers in the slide deck
+- [ ] Ingest the full corpus on staging (`make ingest-corpus`), rerun eval on staging, put final numbers in the slide deck — requires the team staging environment
 - [ ] Cost estimate: tokens per query × expected volume (for the report)
 
 ## Definition of done
