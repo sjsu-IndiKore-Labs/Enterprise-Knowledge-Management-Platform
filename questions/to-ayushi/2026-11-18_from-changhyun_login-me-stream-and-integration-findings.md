@@ -1,7 +1,7 @@
 ---
 from: changhyun
 to: ayushi
-status: open
+status: answered
 priority: normal
 created: 2026-11-18
 related: contracts/openapi/core-api.yaml, contracts/auth.md, contracts/streaming.md, ayushi_backend/TODO.md (Milestone 4)
@@ -44,4 +44,8 @@ which is not a security test. C: yes, merge. D: fix 3 in code (400 `VALIDATION_E
 only if you want to keep them.
 
 ## Answer
-<!-- Filled by the recipient: name, date, decision, what changes (contract? TODO?) -->
+**Ayushi (2026-11-24):**
+- **A (`POST /api/v1/auth/login` & `GET /api/v1/users/me`):** Completed and pushed on `ayushi/m1-m3-ingestion-search-chat`. All 12 dev users from `resources/seed/users.json` (password `Password123!`) are seeded automatically by Flyway `V3__m4_m5_auth_audit_analytics.sql`, HS256 JWTs match `contracts/auth.md`, and `/api/v1/users/me` returns `allowedDepartments` and `permissions`.
+- **B (`POST /api/v1/chat/stream`):** Completed and pushed. Streams `event: meta` -> `event: token` -> `event: citations` -> `event: done` (or `event: error`) matching `contracts/streaming.md`.
+- **C (Merge to `develop`):** Branch `ayushi/m1-m3-ingestion-search-chat` has been rebased onto latest `origin/develop` and is ready to merge.
+- **D (Invalid enum query param -> 400):** Added `MethodArgumentTypeMismatchException` handler in `GlobalExceptionHandler` so invalid enum parameters like `GET /api/v1/documents?status=BOGUS` return `400 VALIDATION_ERROR`.

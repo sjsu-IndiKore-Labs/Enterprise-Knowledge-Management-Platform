@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="core-api"/>
+    <springProperty scope="context" name="logFormat" source="logging.format" defaultValue="json"/>
+
+    <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSS'Z',UTC}","level":"%level","service":"${appName}","traceId":"%X{traceId:-none}","userId":"%X{userId:-anonymous}","thread":"%thread","logger":"%logger{36}","message":"%replace(%msg){'[\"\\]','\\$0'}","exception":"%replace(%ex{short}){'[\r\n\"\\]',' '}"}%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="TEXT_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [traceId=%X{traceId:-none} userId=%X{userId:-anonymous}] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="${LOG_LEVEL:-INFO}">
+        <appender-ref ref="JSON_CONSOLE"/>
+    </root>
+</configuration>
+

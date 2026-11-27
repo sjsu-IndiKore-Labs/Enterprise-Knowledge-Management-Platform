@@ -1,0 +1,93 @@
+### ============================================================================
+### Enterprise Knowledge Management Platform — Demo API Collection (Milestone 6)
+### Owner: Ayushi (Backend & Security)
+### Base URL: http://localhost:8080
+### ============================================================================
+
+@baseUrl = http://localhost:8080
+
+### 1. Login as Hannah (HR Employee) -> receives JWT with allowedDepartments: [HR, GENERAL]
+# @name loginHr
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "hannah.hr@helios.example.com",
+  "password": "Password123!"
+}
+
+### 2. Get Current User Profile & Effective Permissions
+GET {{baseUrl}}/api/v1/users/me
+Authorization: Bearer {{loginHr.response.body.accessToken}}
+
+### 3. List All Enterprise Departments
+GET {{baseUrl}}/api/v1/departments
+Authorization: Bearer {{loginHr.response.body.accessToken}}
+
+### 4. List Documents Visible to Caller (HR + GENERAL only)
+GET {{baseUrl}}/api/v1/documents?page=0&size=20
+Authorization: Bearer {{loginHr.response.body.accessToken}}
+
+### 5. Hybrid Search (Semantic + Keyword) Scoped to Allowed Departments
+POST {{baseUrl}}/api/v1/search
+Authorization: Bearer {{loginHr.response.body.accessToken}}
+Content-Type: application/json
+
+{
+  "query": "How many unused PTO days can I carry over into next year?",
+  "mode": "HYBRID",
+  "topK": 5
+}
+
+### 6. Grounded RAG Chat with Source Citations (Non-Streaming)
+# @name askChat
+POST {{baseUrl}}/api/v1/chat
+Authorization: Bearer {{loginHr.response.body.accessToken}}
+Content-Type: application/json
+
+{
+  "message": "How long is paid parental leave and when do employees become eligible?"
+}
+
+### 7. Grounded RAG Chat (Server-Sent Events Stream: meta -> token* -> citations -> done)
+POST {{baseUrl}}/api/v1/chat/stream
+Authorization: Bearer {{loginHr.response.body.accessToken}}
+Content-Type: application/json
+Accept: text/event-stream
+
+{
+  "message": "How much PTO does someone with 4 years of service accrue per month?"
+}
+
+### 8. Submit Thumbs-Up Feedback on Assistant Answer
+POST {{baseUrl}}/api/v1/chat/messages/{{askChat.response.body.messageId}}/feedback
+Authorization: Bearer {{loginHr.response.body.accessToken}}
+Content-Type: application/json
+
+{
+  "rating": "UP",
+  "comment": "Exact policy citation from HR-001 page 2!"
+}
+
+### 9. Login as Alice (System Admin) -> Admin Analytics & Knowledge Gaps
+# @name loginAdmin
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "alice.admin@helios.example.com",
+  "password": "Password123!"
+}
+
+### 10. Admin Analytics Summary KPI Tiles
+GET {{baseUrl}}/api/v1/admin/analytics/summary
+Authorization: Bearer {{loginAdmin.response.body.accessToken}}
+
+### 11. Admin Knowledge Gaps List
+GET {{baseUrl}}/api/v1/admin/knowledge-gaps?status=OPEN
+Authorization: Bearer {{loginAdmin.response.body.accessToken}}
+
+### 12. Admin Audit Trail
+GET {{baseUrl}}/api/v1/admin/audit-logs?page=0&size=20
+Authorization: Bearer {{loginAdmin.response.body.accessToken}}
+
