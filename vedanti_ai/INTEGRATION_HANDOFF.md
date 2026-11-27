@@ -4,9 +4,9 @@ Owner: Vedanti. Verification updated: November 27, 2026.
 
 ## Status
 
-Local AI pipeline verification completed against the current working tree on `vedanti_ai`. Full application end-to-end testing is NOT complete. The local runner uses the production `IngestionPipeline.process_file` method over checked-in sample files, then asks questions against the in-memory index. It substitutes local files for S3/SQS transport.
+I tested the AI worker's document-processing pipeline locally using the sample files under `resources/corpus/files/`. The local runner passes those files through the same `IngestionPipeline.process_file` method used by `ai-worker`, then asks questions against the in-memory index. This verifies local extraction, chunking, indexing, retrieval, and answer behavior. It does not run the live SQS worker loop or read documents from S3, so full application end-to-end testing is NOT complete.
 
-The local test uses `resources/corpus/files/`, fake embeddings/generation and an in-memory index. It does not verify S3, SQS, PostgreSQL, employee login, or OpenAI. A passing component suite is not production sign-off.
+The local test uses files in `resources/corpus/files/`, fake embeddings/generation, and an in-memory index. It does not verify S3, SQS transport, PostgreSQL, employee login, or OpenAI. Real S3 access and the deployed worker flow will be tested after the staging infrastructure is finalized, deployed, and a working test path is available. A passing local test is not production sign-off.
 
 ## Results reproduced
 
@@ -61,4 +61,4 @@ For each check retain: timestamp, deployed commit, sanitized request/response, t
 
 ## Handoff acceptance
 
-Pending: full local stack testing on the latest infrastructure branch; deployed known-object read; authenticated end-to-end flow; and real-provider evaluation. This document records verified AI behavior and remaining integration gates, not a claim that the entire platform is production-ready or that staging infrastructure is broken.
+Pending: full local stack testing on the latest infrastructure branch; real S3 known-object read and deployed worker test after infrastructure is finalized and deployed; authenticated end-to-end flow; and real-provider evaluation. This document records verified local AI worker-pipeline behavior and remaining integration gates, not a claim that the entire platform is production-ready or that staging infrastructure is broken.
