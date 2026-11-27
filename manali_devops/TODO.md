@@ -63,6 +63,7 @@ Each service's `Dockerfile` + health endpoint (see `contracts/ports-and-services
 - [ ] Get answers to the container-convention questions sent to Ayushi, Vedanti and Changhyun
 - [x] `REAL=1 make test-docker` once each service has code (2026-11-27: all 5 real images healthy against fresh Postgres + LocalStack; CI runs it with `BACKEND_NETWORK=ekm_default`)
 - [x] Backend switched to Maven: build-push.sh / test_images.sh detect `ayushi_backend/pom.xml`, fixture converted to Maven
+- [x] ai-service/ai-worker read `POSTGRES_*` + `POSTGRES_SSLMODE` (fixed by Vedanti in #41; images re-tested healthy 2026-11-27). Close [the question](../questions/to-vedanti/2026-11-27_from-manali_postgres-env-var-names.md) once she fills in the Answer
 - [ ] Retire `make migrate-raw` once Ayushi confirms Flyway is the schema source of truth (local DBs built with it break core-api's V2 migration)
 
 ## Team-lead recurring
@@ -71,5 +72,4 @@ Each service's `Dockerfile` + health endpoint (see `contracts/ports-and-services
 - [ ] Merge `develop` → `main` at the end of each milestone (tag `m2`, `m3`, …)
 
 ## Blocked / waiting on
-- ai-service/ai-worker can't reach RDS until they read `POSTGRES_*`: [questions/to-vedanti/2026-11-27_from-manali_postgres-env-var-names.md](../questions/to-vedanti/2026-11-27_from-manali_postgres-env-var-names.md) (blocking)
 - Flyway vs contract schema (`audit_logs.metadata` TEXT vs JSONB): [questions/to-ayushi/2026-11-27_from-manali_flyway-vs-contract-schema.md](../questions/to-ayushi/2026-11-27_from-manali_flyway-vs-contract-schema.md)
