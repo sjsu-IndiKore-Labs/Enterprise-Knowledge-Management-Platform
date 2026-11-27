@@ -41,4 +41,6 @@ USER app
 EXPOSE ${PORT}
 HEALTHCHECK --interval=15s --timeout=3s --start-period=30s --retries=5 \
   CMD python -c "import os,urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ[\"PORT\"]}/health', timeout=2)" || exit 1
-CMD ["sh", "-c", "exec uvicorn \"$APP_MODULE\" --host 0.0.0.0 --port \"$PORT\" --workers \"$UVICORN_WORKERS\" --proxy-headers"]
+# --http h11: core-api's java.net.http.HttpClient offers an h2c upgrade on plain HTTP; uvicorn's default
+# httptools parser drops the POST body on that request (core-api then sees 400/422). h11 ignores the upgrade.
+CMD ["sh", "-c", "exec uvicorn \"$APP_MODULE\" --host 0.0.0.0 --port \"$PORT\" --workers \"$UVICORN_WORKERS\" --proxy-headers --http h11"]

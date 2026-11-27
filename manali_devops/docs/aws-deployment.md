@@ -87,8 +87,37 @@ Database migrations run automatically: core-api applies Flyway on startup (migra
 - Alarms and what to do: [operations-runbook.md](operations-runbook.md).
 
 ## 9. Teardown (after grading)
+
+**Before** (keep evidence for the report): screenshot the CloudWatch dashboard, ECS services, ALB and a green CD run;
+save k6 output and `resources/eval/results/`; export anything from S3 you want to keep. RDS is destroyed **without** a final
+snapshot (`db_skip_final_snapshot = true`).
+
+**Destroy staging** (≈10 min). Everything in the stack is built to delete cleanly: S3 `force_destroy` and ECR `force_delete`
+(non-prod), RDS `deletion_protection = false`, Secrets Manager `recovery_window_in_days = 0`.
 ```bash
-make aws-wake   # RDS must be running to be deleted
+aws login
+make aws-wake                     # a stopped RDS instance cannot be deleted
+terraform -chdir=manali_devops/infra/terraform plan -destroy -var-file=environments/staging.tfvars   # review
 terraform -chdir=manali_devops/infra/terraform destroy -var-file=environments/staging.tfvars
-# then optionally: terraform -chdir=manali_devops/infra/terraform/bootstrap destroy  (empty the state bucket first)
 ```
+
+**Clean up outside Terraform**
+- GitHub: delete repository variables `AWS_DEPLOY_ROLE_ARN`, `AWS_REGION`, `STAGING_URL` and the `staging` environment
+  (`gh variable delete <name>`), so the CD workflow goes back to build-only.
+- CloudWatch log groups and the KMS key are in the stack. The KMS key stays *pending deletion* for 7 days (~$1, expected).
+
+**Optional: remove remote state** (only when the project is fully over; there is no way back):
+```bash
+B=$(terraform -chdir=manali_devops/infra/terraform/bootstrap output -raw state_bucket)
+aws s3api delete-objects --bucket "$B" --delete "$(aws s3api list-object-versions --bucket "$B" \
+  --query '{Objects: [Versions[], DeleteMarkers[]][].{Key: Key, VersionId: VersionId}}' --output json)"
+terraform -chdir=manali_devops/infra/terraform/bootstrap destroy   # versioned bucket: all versions must be gone first
+```
+
+**Verify nothing is left billing** (next day, Cost Explorer updates with a delay):
+```bash
+aws resourcegroupstaggingapi get-resources --tag-filters Key=Project,Values=ekm --query 'ResourceTagMappingList[].ResourceARN'
+aws ecs list-clusters; aws rds describe-db-instances --query 'DBInstances[].DBInstanceIdentifier'; aws elbv2 describe-load-balancers --query 'LoadBalancers[].LoadBalancerName'
+```
+Expect empty lists. The AWS Budget is part of the stack, so it is gone too. Check Billing → Cost Explorer (group by service)
+two days later to confirm spend has stopped.

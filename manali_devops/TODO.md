@@ -23,8 +23,9 @@ Each service's `Dockerfile` + health endpoint (see `contracts/ports-and-services
 ## Milestone 1 — catch-up (was due Oct 11) — finish by **Oct 21**
 - [x] Repo structure, `AGENTS.md`, contracts v1, member TODOs, questions mailbox, sample data (2026-10-19)
 - [ ] Get every member to acknowledge `questions/to-all/2026-10-19_from-manali_confirm-architecture-and-contracts-v1.md`
-- [ ] Protect `main` and `develop` (PR required, 1 approval, CI green); set `develop` as default PR target
+- [x] Protect `main` and `develop` (PR required, 1 approval, CI green); set `develop` as default PR target (verified 2026-11-27)
 - [ ] Verify `make up` on Mac + Windows (WSL2): postgres+pgvector healthy, LocalStack creates bucket + 6 queues, `make seed` works
+  - Mac ✔ 2026-11-27: full `--profile apps` stack on fresh volumes, `validate-localstack` OK (bucket, CORS, 3 queues + 3 DLQs). Windows/WSL2 still to do
 - [x] Docker base templates for Java (Temurin 21, multi-stage), Node 20 (Next standalone), Python 3.11-slim — add to `docs/` or each owner's folder via PR they approve
 - [x] CI (`.github/workflows/ci.yml`): contracts lint + event examples validation; per-service jobs that run only when the service exists
 
@@ -49,12 +50,15 @@ Each service's `Dockerfile` + health endpoint (see `contracts/ports-and-services
 - [x] Metrics + alarms: ECS CPU/memory, ALB 5xx & p95 latency, SQS `ApproximateAgeOfOldestMessage` on ingest, **DLQ depth > 0**, RDS CPU/storage; SNS email
 - [x] CloudWatch dashboard (screenshot for the report)
 - [ ] k6 load test (`load-test/chat.js`) with `resources/load-test/queries.csv`: 20 virtual users × 5 min, record p95 latency and error rate
+  - Local baseline 2026-11-27 (Mac, `AI_PROVIDER=fake`, 20 VUs × 5 min): 2976 req, p95 answered chat 36 ms, 79% rate-limited (429, expected: 6 users × 20/min), 3.5% errors = admin chats 502 (`OPERATIONS` dept, see Ayushi question). `chat.js` now counts 429 separately. **Still to run on staging with OpenAI**
 
 ## Milestone 6 — Integration, staging, demo (Nov 29 – Dec 2)
 - [ ] Full staging deploy; `make ingest-corpus API=<staging url>`; run golden eval on staging
 - [ ] End-to-end test checklist with all four members (`docs/demo-script.md`)
+  - Automated: `python manali_devops/tests/smoke/demo_check.py --api <url>` walks the demo script (upload → INDEXED, DOCX, search/chat/stream, versioning, RBAC, admin)
+  - 2026-11-27 local run found 4 core-api bugs → [question to Ayushi](../questions/to-ayushi/2026-11-27_from-manali_flyway-vs-contract-schema.md); fixed the h2c/uvicorn one in the Python template (`--http h11`)
 - [ ] Final slide deck + architecture diagram + project documentation; rehearse demo twice; record a backup video
-- [ ] Tear-down plan for AWS resources after grading (cost)
+- [x] Tear-down plan for AWS resources after grading (cost): [docs/aws-deployment.md §9](docs/aws-deployment.md#9-teardown-after-grading)
 
 ## Written on 2026-10-19, not yet run against a real AWS account
 - [ ] Bootstrap state + first `terraform apply` of staging ([docs/aws-deployment.md](docs/aws-deployment.md)); set the OpenAI secret
@@ -72,4 +76,5 @@ Each service's `Dockerfile` + health endpoint (see `contracts/ports-and-services
 - [ ] Merge `develop` → `main` at the end of each milestone (tag `m2`, `m3`, …)
 
 ## Blocked / waiting on
-- Flyway vs contract schema (`audit_logs.metadata` TEXT vs JSONB): [questions/to-ayushi/2026-11-27_from-manali_flyway-vs-contract-schema.md](../questions/to-ayushi/2026-11-27_from-manali_flyway-vs-contract-schema.md)
+- **Blocking demo:** core-api fresh-DB schema lacks `document_chunks.embedding`, INDEXED events lost (@Transactional self-invocation), DOCX upload 500: [questions/to-ayushi/2026-11-27_from-manali_flyway-vs-contract-schema.md](../questions/to-ayushi/2026-11-27_from-manali_flyway-vs-contract-schema.md)
+- Staging deploy, CD, k6 on staging, Jenkins screenshot: need `aws login` + GitHub variables (see below)
