@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from app.models import SearchResult
 from app.rag.guardrails import NOT_FOUND_ANSWER, keep_valid_citations
 from app.rag.prompt import build_prompt
+from app.rag.query import canonical_term, normalize_query
 
 
 @dataclass(frozen=True)
@@ -25,14 +26,27 @@ class FakeLLM:
         if not results:
             return GeneratedAnswer(NOT_FOUND_ANSWER, self.model, 0, 0)
         first = results[0]
-        query_terms = {term.lower().strip(".,:;!?()[]{}\"") for term in query.split() if len(term) > 2}
+        query_terms = {
+            canonical_term(term)
+            for term in re.findall(r"[a-z0-9]+", normalize_query(query).lower())
+            if len(term) > 2 and canonical_term(term) not in {"what", "are", "the", "for", "how", "is", "a", "an"}
+        }
         sentences = [sentence.strip() for sentence in re.split(r"(?<=[.!?])\s+", first.content) if sentence.strip()]
         ranked = sorted(
             sentences,
-            key=lambda sentence: len(query_terms & set(sentence.lower().split())),
+            key=lambda sentence: len(
+                query_terms & {canonical_term(term) for term in re.findall(r"[a-z0-9]+", sentence.lower())}
+            ),
             reverse=True,
         )
-        selected = " ".join(ranked[:2] or sentences[:1]).rstrip(".")
+        relevant = [
+            sentence
+            for sentence in ranked
+            if query_terms & {canonical_term(term) for term in re.findall(r"[a-z0-9]+", sentence.lower())}
+        ]
+        if not relevant:
+            return GeneratedAnswer(NOT_FOUND_ANSWER, self.model, len(query.split()), 0)
+        selected = " ".join(relevant[:2]).rstrip(".")
         text = keep_valid_citations(f"{selected}. [1]", len(results))
         return GeneratedAnswer(text, self.model, len(query.split()), len(text.split()))
 

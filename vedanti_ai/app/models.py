@@ -58,6 +58,10 @@ class AnswerRequest(ContractModel):
     top_k: int = Field(6, alias="topK", ge=1, le=20)
 
 
+class ReindexRequest(ContractModel):
+    version_id: UUID = Field(alias="versionId")
+
+
 class SearchResult(ContractModel):
     chunk_id: UUID = Field(alias="chunkId")
     document_id: UUID = Field(alias="documentId")

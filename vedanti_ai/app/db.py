@@ -8,11 +8,14 @@ authorization filtering after retrieval.
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from uuid import UUID
 
 from app.ingestion.chunker import Chunk
-from app.models import DepartmentCode, DocumentCategory, SearchMode
+from app.models import DepartmentCode, DocumentCategory, IngestEvent, SearchMode
+from app.rag.query import canonical_term, normalize_query
 
 
 @dataclass(frozen=True)
@@ -33,8 +36,19 @@ def _cosine(left: list[float], right: list[float]) -> float:
 
 
 def _keyword_score(query: str, content: str) -> float:
-    query_terms = {term.lower() for term in query.split() if len(term) > 1}
-    content_terms = {term.lower().strip(".,:;!?()") for term in content.split()}
+    stop_words = {
+        "a", "about", "am", "an", "and", "are", "can", "do", "does", "for", "how",
+        "i", "in", "is", "it", "me", "of", "on", "or", "the", "this", "to", "was",
+        "what", "when", "where", "which", "who", "why", "will", "with", "you",
+    }
+    query_terms = {
+        canonical_term(term)
+        for term in re.findall(r"[a-z0-9]+", normalize_query(query).lower())
+        if len(term) > 1 and canonical_term(term) not in stop_words
+    }
+    content_terms = {
+        canonical_term(term) for term in re.findall(r"[a-z0-9]+", content.lower())
+    }
     if not query_terms:
         return 0.0
     return len(query_terms & content_terms) / len(query_terms)
@@ -46,6 +60,9 @@ class InMemoryChunkStore:
 
     def health(self) -> str:
         return "UP"
+
+    def get_ingest_event(self, document_id: UUID, version_id: UUID, trace_id: str) -> IngestEvent:
+        raise RuntimeError("REINDEX_REQUIRES_DATABASE")
 
     def replace_version(self, version_id: UUID, chunks: list[Chunk], embeddings: list[list[float]], previous_version_id: UUID | None = None) -> None:
         self.mark_previous_version_not_current(previous_version_id)
@@ -77,6 +94,7 @@ class InMemoryChunkStore:
         categories: list[DocumentCategory] | None = None,
         semantic_weight: float = 0.7,
     ) -> list[tuple[UUID, StoredChunk, float, float, float]]:
+        query = normalize_query(query)
         allowed = set(allowed_departments)
         candidates = []
         for chunk_id, stored in self._chunks.items():
@@ -111,6 +129,45 @@ class PostgresChunkStore:
             return "UP"
         except Exception:  # noqa: BLE001 - health must return a response when DB is unavailable.
             return "DOWN"
+
+    def get_ingest_event(self, document_id: UUID, version_id: UUID, trace_id: str) -> IngestEvent | None:
+        sql = """
+        SELECT d.title, d.department_code, d.category,
+               v.id, v.version, v.s3_bucket, v.s3_key, v.content_type,
+               v.original_filename, v.size_bytes, v.uploaded_by,
+               previous.id
+        FROM documents AS d
+        JOIN document_versions AS v ON v.document_id = d.id
+        LEFT JOIN document_versions AS previous
+          ON previous.document_id = v.document_id
+         AND previous.version = v.version - 1
+        WHERE d.id = %s AND v.id = %s AND d.deleted_at IS NULL
+        """
+        with self.pool.connection() as connection, connection.cursor() as cursor:
+            cursor.execute(sql, (document_id, version_id))
+            row = cursor.fetchone()
+        if row is None:
+            return None
+        title, department, category, version_id, version, bucket, key, content_type, filename, size_bytes, uploaded_by, previous_id = row
+        return IngestEvent(
+            eventId=__import__("uuid").uuid4(),
+            eventType="DOCUMENT_INGEST_REQUESTED",
+            occurredAt=datetime.now(UTC).isoformat(),
+            traceId=trace_id,
+            documentId=document_id,
+            versionId=version_id,
+            version=version,
+            previousVersionId=previous_id,
+            s3Bucket=bucket,
+            s3Key=key,
+            contentType=content_type,
+            originalFilename=filename,
+            sizeBytes=size_bytes,
+            title=title,
+            department=DepartmentCode(department),
+            category=DocumentCategory(category),
+            uploadedBy=uploaded_by,
+        )
 
     def replace_version(self, version_id: UUID, chunks: list[Chunk], embeddings: list[list[float]], previous_version_id: UUID | None = None) -> None:
         insert_sql = """
@@ -215,10 +272,12 @@ def create_store(settings):
     # keep the in-memory store so the service can run without infrastructure.
     if settings.postgresql_host != "postgres" and settings.app_env not in {"staging", "prod"}:
         return InMemoryChunkStore()
+    from psycopg.conninfo import make_conninfo
     from psycopg_pool import ConnectionPool
 
-    connection_string = (
-        f"host={settings.postgresql_host} port={settings.postgresql_port} "
-        f"dbname={settings.postgresql_db} user={settings.postgresql_user} password={settings.postgresql_password}"
+    connection_string = make_conninfo(
+        host=settings.postgresql_host, port=settings.postgresql_port,
+        dbname=settings.postgresql_db, user=settings.postgresql_user,
+        password=settings.postgresql_password, sslmode=settings.postgresql_sslmode,
     )
     return PostgresChunkStore(ConnectionPool(conninfo=connection_string, open=True))

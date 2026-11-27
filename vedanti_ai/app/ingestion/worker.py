@@ -46,11 +46,12 @@ def run_worker() -> None:
                 processing = pipeline._status(event, "PROCESSING")
                 sqs.send_message(QueueUrl=status_url, MessageBody=processing.model_dump_json(by_alias=True))
                 with tempfile.TemporaryDirectory() as directory:
-                    path = Path(directory) / event.original_filename
+                    path = Path(directory) / Path(event.original_filename).name
                     s3.download_file(event.s3_bucket, event.s3_key, str(path))
                     result = pipeline.process_file(event, path)
                 sqs.send_message(QueueUrl=status_url, MessageBody=result.model_dump_json(by_alias=True))
-                sqs.delete_message(QueueUrl=ingest_url, ReceiptHandle=message["ReceiptHandle"])
+                if result.status == "INDEXED":
+                    sqs.delete_message(QueueUrl=ingest_url, ReceiptHandle=message["ReceiptHandle"])
             except Exception as exc:  # noqa: BLE001 - leave message for SQS retry/DLQ handling.
                 if event is not None:
                     error_code = "S3_READ_FAILED" if "download" in str(exc).lower() else "INTERNAL_ERROR"

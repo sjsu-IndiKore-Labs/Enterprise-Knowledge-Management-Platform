@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 import time
 from collections import OrderedDict
 from time import monotonic
@@ -17,9 +18,9 @@ class FakeEmbeddings:
         vectors = []
         for text in texts:
             values = [0.0] * self.dimensions
-            tokens = text.lower().split()
+            tokens = re.findall(r"[a-z0-9]+", text.lower())
             for token in tokens:
-                digest = hashlib.sha256(token.strip(".,:;!?()[]{}\"").encode()).digest()
+                digest = hashlib.sha256(token.encode()).digest()
                 index = int.from_bytes(digest[:4], "big") % self.dimensions
                 values[index] += 1.0 if digest[4] % 2 else -1.0
             norm = math.sqrt(sum(value * value for value in values)) or 1.0

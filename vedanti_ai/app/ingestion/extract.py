@@ -57,6 +57,10 @@ def extract_pdf(path: str | Path) -> list[ExtractedSegment]:
 
 def extract_docx(path: str | Path) -> list[ExtractedSegment]:
     from docx import Document
+    from docx.oxml.table import CT_Tbl
+    from docx.oxml.text.paragraph import CT_P
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
 
     try:
         document = Document(str(path))
@@ -65,24 +69,26 @@ def extract_docx(path: str | Path) -> list[ExtractedSegment]:
 
     segments: list[ExtractedSegment] = []
     current_heading: str | None = None
-    for paragraph in document.paragraphs:
-        text = clean_text(paragraph.text)
-        if not text:
-            continue
-        style_name = (paragraph.style.name or "").lower()
-        if "heading" in style_name:
-            current_heading = text
-        else:
-            segments.append(ExtractedSegment(text=text, section_title=current_heading))
-
-    for table in document.tables:
-        rows = []
-        for row in table.rows:
-            cells = [clean_text(cell.text) for cell in row.cells]
-            if any(cells):
-                rows.append(" | ".join(cells))
-        if rows:
-            segments.append(ExtractedSegment(text="\n".join(rows), section_title=current_heading))
+    for child in document.element.body.iterchildren():
+        if isinstance(child, CT_P):
+            paragraph = Paragraph(child, document)
+            text = clean_text(paragraph.text)
+            if not text:
+                continue
+            style_name = (paragraph.style.name or "").lower()
+            if "heading" in style_name:
+                current_heading = text
+            else:
+                segments.append(ExtractedSegment(text=text, section_title=current_heading))
+        elif isinstance(child, CT_Tbl):
+            table = Table(child, document)
+            rows = []
+            for row in table.rows:
+                cells = [clean_text(cell.text) for cell in row.cells]
+                if any(cells):
+                    rows.append(" | ".join(cells))
+            if rows:
+                segments.append(ExtractedSegment(text="\n".join(rows), section_title=current_heading))
 
     if not segments:
         raise ValueError("NO_EXTRACTABLE_TEXT")

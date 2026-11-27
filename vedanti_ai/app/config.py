@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -7,11 +8,12 @@ class Settings(BaseSettings):
     app_env: str = "local"
     log_level: str = "INFO"
     log_format: str = "text"
-    postgresql_host: str = "localhost"
-    postgresql_port: int = 5432
-    postgresql_db: str = "ekm"
-    postgresql_user: str = "ekm"
-    postgresql_password: str = "ekm_local_password"
+    postgresql_host: str = Field("localhost", validation_alias="POSTGRES_HOST")
+    postgresql_port: int = Field(5432, validation_alias="POSTGRES_PORT")
+    postgresql_db: str = Field("ekm", validation_alias="POSTGRES_DB")
+    postgresql_user: str = Field("ekm", validation_alias="POSTGRES_USER")
+    postgresql_password: str = Field("ekm_local_password", validation_alias="POSTGRES_PASSWORD")
+    postgresql_sslmode: str = Field("prefer", validation_alias="POSTGRES_SSLMODE")
     aws_region: str = "us-west-2"
     aws_endpoint_url: str | None = "http://localhost:4566"
     aws_access_key_id: str = "test"
@@ -37,6 +39,7 @@ class Settings(BaseSettings):
         env_file=".env",
         extra="ignore",
         case_sensitive=False,
+        populate_by_name=True,
     )
 
 
