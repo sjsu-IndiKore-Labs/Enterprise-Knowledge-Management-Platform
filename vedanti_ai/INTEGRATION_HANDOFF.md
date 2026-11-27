@@ -1,6 +1,6 @@
 # AI integration testing handoff
 
-Owner: Vedanti. Verification date: November 27, 2026.
+Owner: Vedanti. Verification updated: November 27, 2026.
 
 ## Status
 
@@ -11,7 +11,8 @@ The local test uses `resources/corpus/files/`, fake embeddings/generation and an
 ## Results reproduced
 
 - Automated suite: 21 passed, two dependency deprecation warnings (November 27).
-- Ruff: passed for app, tests, and local runner.
+- Ruff: passed across the complete `vedanti_ai` package, including tests and scripts.
+- PR #41 CI: all five checks passed on code commit `03125ea` (AI lint/tests, backend build, frontend checks/build, and contracts). The handoff-only update is being added after that run.
 - Local worker-path runner: all 19 document versions in the manifest pass through `IngestionPipeline.process_file`; representative query checks cover working-hours, on-call stipend, refusal, citations, and Engineering/HR department filters.
 - Forty-question offline evaluation after query normalization: answered/refused classification accuracy 80%; expected answer-text match 64.52%; citation accuracy 70.97%; retrieval recall 96.77%; expected refusals correct 100%; department leakage observed 0; p95 8 ms. These are fake-provider measurements, not production quality or latency claims.
 
@@ -19,7 +20,7 @@ Reproduce from repository root:
 
 ```sh
 PYTHONPATH=vedanti_ai vedanti_ai/.venv/bin/python -m pytest -q vedanti_ai/tests
-PYTHONPATH=vedanti_ai vedanti_ai/.venv/bin/python -m ruff check vedanti_ai/app vedanti_ai/tests
+(cd vedanti_ai && .venv/bin/ruff check .)
 PYTHONPATH=vedanti_ai vedanti_ai/.venv/bin/python -m eval.run_eval
 PYTHONPATH=vedanti_ai vedanti_ai/.venv/bin/python vedanti_ai/scripts/local_worker_chat.py --department ENGINEERING
 ```
@@ -28,11 +29,11 @@ The local worker chat simulates the selected department plus GENERAL access; it 
 
 ## Local and deployment limitations
 
-Colima and Docker are installed and running. Compose currently exposes `postgres` and `localstack` as infrastructure services; it does not define a runnable `ai-worker` service in the current `develop` Compose file. Full Core API → SQS → worker → PostgreSQL Compose testing has therefore not been completed. Starting those containers alone is not an end-to-end test.
+The `develop` Compose file at the tested base commit exposes `postgres` and `localstack` but does not define a runnable `ai-worker`, so full local platform testing from `develop` has not been completed. Manali's newer `manali/staging-infra-fixes` branch (`b0e7a0b`) adds an `ai-worker` Compose service and ECS task configuration. Its service card documents S3 object reads under `documents/*`, KMS decrypt, and the required SQS permissions; the ECS config clears local AWS endpoint/key overrides so the task role can be used. That branch is separate from `develop` and its configuration has not been applied or verified in the deployed AWS environment. It may enable the missing integration path once the infrastructure owner finalizes and deploys it.
 
 The available AWS profile authenticates account 944311260916. S3 listing returned AccessDenied; ECS list-tasks for `ekm-staging` in us-west-2 returned ClusterNotFoundException. These do not establish whether the worker in the owning account can read an object. No usable deployed API URL was found in the inspected repository configuration or repository GitHub variables/deployment records.
 
-Infrastructure branch inspected: `manali/staging-infra`, commit `37c7a12369e76e21b0f60df352eac1447278bb8c`. It clears local AWS endpoint settings in ECS and defines worker object-read access under `documents/*`. It does not grant bucket-wide listing. A known-object read is the appropriate permission test. Terraform declarations are not proof of applied deployment state.
+Earlier infrastructure branch inspected: `manali/staging-infra`, commit `37c7a12369e76e21b0f60df352eac1447278bb8c`. Newer proposed configuration is on `manali/staging-infra-fixes` (`b0e7a0b`). Neither branch by itself proves that the configuration has been applied to AWS. The proposed worker policy allows reading objects under `documents/*`; it does not grant bucket-wide listing. A known-object read from the deployed worker is the appropriate permission test.
 
 ## AI corrections verified locally on November 27
 
@@ -48,7 +49,7 @@ These corrections are included in the AI branch candidate and require integratio
 
 Manali owns deployment/runtime provisioning and sharing the approved test endpoint/access. Ayushi owns authenticated Core API uploads and department derivation. Vedanti owns worker and answer behavior and remains responsible for AI defects discovered during integration.
 
-1. Record the actual image commit, ECS task role, bucket, queue names and database migration version. Use current backend code: the older Core API snapshot on the inspected infrastructure branch only persists upload metadata and does not implement the complete S3/SQS flow.
+1. After the infrastructure branch is finalized and deployed, record the actual image commit, ECS task role, bucket, queue names and database migration version. Confirm the deployed Core API image includes the current upload-to-S3 and SQS publishing flow; do not infer deployment state from source files alone.
 2. In the deployed worker runtime, read ONE known object under `documents/` using its normal SDK credentials. Record success or the sanitized AWS error. Do not use bucket listing as a prerequisite; do not share temporary credentials.
 3. With an authenticated application test user, upload a PDF and a DOCX through Core API. Record document/version/trace IDs and S3 keys. Confirm the ingestion event matches `contracts/events/document-ingest-requested.schema.json`.
 4. Verify PROCESSING then INDEXED status, persistent chunks in PostgreSQL, correct department/page/section metadata, and no duplicate chunks on event replay. Verify failure/retry behavior separately.
@@ -60,4 +61,4 @@ For each check retain: timestamp, deployed commit, sanitized request/response, t
 
 ## Handoff acceptance
 
-Pending: full local stack testing after Compose includes the worker and compatible Core API; deployed known-object read; authenticated end-to-end flow; and real-provider evaluation. This document records verified AI behavior and remaining integration gates, not a claim that the entire platform is production-ready or that staging infrastructure is broken.
+Pending: full local stack testing on the latest infrastructure branch; deployed known-object read; authenticated end-to-end flow; and real-provider evaluation. This document records verified AI behavior and remaining integration gates, not a claim that the entire platform is production-ready or that staging infrastructure is broken.
