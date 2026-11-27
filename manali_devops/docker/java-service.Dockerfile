@@ -6,9 +6,10 @@
 #   docker build -f manali_devops/docker/java-service.Dockerfile \
 #     --build-arg SERVICE=core-api --build-arg PORT=8080 -t ekm-core-api .
 #
-# Expects (Ayushi): a Gradle multi-project in $BACKEND_DIR where `:<SERVICE>:bootJar`
-# produces <SERVICE>/build/libs/<name>.jar, and GET /actuator/health on $PORT.
-# Flyway location inside the image: filesystem:/contracts/database/migrations
+# Expects (Ayushi): a Maven multi-module project in $BACKEND_DIR where `mvn package -pl <SERVICE> -am`
+# produces exactly one <SERVICE>/target/*.jar, and GET /actuator/health on $PORT.
+# Contract migrations are copied to /contracts/database/migrations; core-api currently runs its own
+# Flyway scripts from classpath:db/migration (ayushi_backend/core-api/src/main/resources/db/migration).
 # =============================================================================
 ARG MAVEN_IMAGE=maven:3.9-eclipse-temurin-21
 ARG RUNTIME_IMAGE=eclipse-temurin:21-jre-alpine

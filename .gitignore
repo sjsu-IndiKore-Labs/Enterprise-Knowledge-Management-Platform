@@ -65,3 +65,6 @@ manali_devops/localstack/volume/
 resources/eval/results/
 
 manali_devops/infra/terraform/environments/*.backend.hcl
+
+# Locally generated exports (e.g. service-catalog PDFs)
+/output/

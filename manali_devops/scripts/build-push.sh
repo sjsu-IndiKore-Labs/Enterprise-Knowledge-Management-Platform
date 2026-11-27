@@ -23,7 +23,7 @@ build() { # name dockerfile context [build-args...]
   pushed+=("$name")
 }
 
-if [ -f ayushi_backend/settings.gradle.kts ] || [ -f ayushi_backend/settings.gradle ]; then
+if [ -f ayushi_backend/pom.xml ]; then
   build core-api "$D/java-service.Dockerfile" . --build-arg SERVICE=core-api --build-arg PORT=8080
   build audit-service "$D/java-service.Dockerfile" . --build-arg SERVICE=audit-service --build-arg PORT=8081
 fi

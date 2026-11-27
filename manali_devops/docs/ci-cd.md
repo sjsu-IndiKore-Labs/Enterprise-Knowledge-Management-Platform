@@ -2,7 +2,7 @@
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `.github/workflows/ci.yml` | every PR / push to `develop`, `main` | Contracts lint + event schema validation; build/test each service **once it exists** (backend Gradle, frontend pnpm + generated-types drift check, ai pytest with `AI_PROVIDER=fake`) |
+| `.github/workflows/ci.yml` | every PR / push to `develop`, `main` | Contracts lint + event schema validation; build/test each service **once it exists** (backend Maven, frontend pnpm + generated-types drift check, ai pytest with `AI_PROVIDER=fake`) |
 | `.github/workflows/devops-ci.yml` | PRs touching infra files | hadolint, shellcheck, actionlint, `docker compose config`; pytest config tests; Terraform fmt/validate/**test**/tflint/checkov; build + run every Dockerfile template (fixtures and real services) + Trivy report; integration tests against Postgres+pgvector and LocalStack |
 | `.github/workflows/cd-staging.yml` | push to `main`, manual | Build images for services that exist → push to ECR (tag = commit SHA) → new task definition revisions → `services-stable` → smoke test. Without `AWS_DEPLOY_ROLE_ARN` it only builds |
 | `manali_devops/jenkins/Jenkinsfile` | Jenkins job | Same stages as GitHub Actions; deploys when `DEPLOY=true` on `main` |

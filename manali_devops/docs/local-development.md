@@ -19,7 +19,7 @@ the Docker network: `POSTGRES_HOST=postgres`, `AWS_ENDPOINT_URL=http://localstac
 ## What each member's code must provide for its container
 | Service | Must provide |
 |---|---|
-| core-api / audit-service | Gradle multi-project in `ayushi_backend/` with `:core-api:bootJar` and `:audit-service:bootJar`; listen on `PORT` (8080/8081); `/actuator/health`; Flyway location `filesystem:/contracts/database/migrations` in Docker; JDBC URL uses `sslmode=${POSTGRES_SSLMODE}` |
+| core-api / audit-service | Maven multi-module project in `ayushi_backend/` (`mvn package -pl core-api -am`, same for `audit-service`); listen on `PORT` (8080/8081); `/actuator/health`; core-api runs Flyway from `classpath:db/migration`; JDBC URL uses `sslmode=${POSTGRES_SSLMODE}` |
 | ai-service / ai-worker | `vedanti_ai/pyproject.toml`; `app.main:app` with `GET /health`; `python -m app.ingestion.worker` runs the SQS loop |
 | web | `changhyun_frontend/package.json` with `build`; `output: 'standalone'`; `GET /api/health`; API calls use `NEXT_PUBLIC_API_BASE_URL` (empty string = same origin in AWS) |
 

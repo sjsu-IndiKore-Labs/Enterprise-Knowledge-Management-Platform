@@ -39,6 +39,19 @@ check() { # label image port [docker run args...]
   docker rm -f "$name" >/dev/null 2>&1 || true
 }
 
+# Real services connect to Postgres/SQS at startup. For REAL=1, start them first with
+# `docker compose up -d --wait postgres localstack` and set BACKEND_NETWORK=ekm_default.
+infra_run_args=()
+if [ -n "${BACKEND_NETWORK:-}" ]; then
+  infra_run_args=(--network "$BACKEND_NETWORK"
+    -e POSTGRES_HOST=postgres -e POSTGRES_PORT=5432 -e POSTGRES_DB=ekm
+    -e POSTGRES_USER=ekm -e POSTGRES_PASSWORD=ekm_local_password
+    -e AWS_ENDPOINT_URL=http://localstack:4566 -e AWS_REGION=us-west-2
+    -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test
+    -e JWT_SECRET=image-test-jwt-secret-at-least-32-bytes-long
+    -e INTERNAL_SERVICE_TOKEN=image-test-internal-token)
+fi
+
 if [[ "$ONLY" == all || "$ONLY" == python ]]; then
   ctx="$FIX/python-service"; [ "${REAL:-0}" = 1 ] && [ -f vedanti_ai/pyproject.toml ] && ctx="vedanti_ai"
   echo "== python-service.Dockerfile ($ctx)"
@@ -46,7 +59,8 @@ if [[ "$ONLY" == all || "$ONLY" == python ]]; then
   check ai-service ekm-test/ai-service 8000 -e AI_PROVIDER=fake
   # worker: same image, different command; must stay running
   docker rm -f ekm-imgtest-worker >/dev/null 2>&1 || true
-  docker run -d --name ekm-imgtest-worker --no-healthcheck -e AI_PROVIDER=fake ekm-test/ai-service python -m app.ingestion.worker >/dev/null
+  docker run -d --name ekm-imgtest-worker --no-healthcheck -e AI_PROVIDER=fake \
+    ${infra_run_args[@]+"${infra_run_args[@]}"} ekm-test/ai-service python -m app.ingestion.worker >/dev/null
   sleep 5
   if [ "$(docker inspect -f '{{.State.Running}}' ekm-imgtest-worker)" = true ]; then echo "PASS ai-worker (running)"; else echo "FAIL ai-worker exited"; docker logs ekm-imgtest-worker; FAILED=1; fi
   docker rm -f ekm-imgtest-worker >/dev/null
@@ -60,13 +74,18 @@ if [[ "$ONLY" == all || "$ONLY" == node ]]; then
 fi
 
 if [[ "$ONLY" == all || "$ONLY" == java ]]; then
-  dir="$FIX/java-backend"; [ "${REAL:-0}" = 1 ] && [ -f ayushi_backend/settings.gradle.kts ] && dir="ayushi_backend"
+  dir="$FIX/java-backend"; [ "${REAL:-0}" = 1 ] && [ -f ayushi_backend/pom.xml ] && dir="ayushi_backend"
+  java_run_args=()
+  if [ "$dir" = ayushi_backend ]; then
+    : "${BACKEND_NETWORK:?REAL=1 backend test needs BACKEND_NETWORK (e.g. ekm_default) with postgres + localstack running}"
+    java_run_args=("${infra_run_args[@]}")
+  fi
   for spec in core-api:8080 audit-service:8081; do
     svc="${spec%%:*}"; port="${spec#*:}"
     echo "== java-service.Dockerfile ($dir, $svc)"
     docker build -q -f "$DOCKERFILES/java-service.Dockerfile" --build-arg BACKEND_DIR="$dir" \
       --build-arg SERVICE="$svc" --build-arg PORT="$port" -t "ekm-test/$svc" . >/dev/null
-    check "$svc" "ekm-test/$svc" "$port"
+    check "$svc" "ekm-test/$svc" "$port" ${java_run_args[@]+"${java_run_args[@]}"}
     if [ "$svc" = core-api ]; then
       if docker run --rm --entrypoint ls "ekm-test/$svc" /contracts/database/migrations | grep -q V1__init_schema.sql; then
         echo "PASS core-api image contains Flyway migrations"

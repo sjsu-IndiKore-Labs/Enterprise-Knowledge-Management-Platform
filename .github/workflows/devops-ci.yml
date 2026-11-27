@@ -93,10 +93,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: manali_devops/tests/docker/test_images.sh
+      - name: Start Postgres + LocalStack for the real backend images
+        run: docker compose up -d --wait postgres localstack
       - name: Real services (when they exist)
-        run: REAL=1 manali_devops/tests/docker/test_images.sh
+        run: REAL=1 BACKEND_NETWORK=ekm_default manali_devops/tests/docker/test_images.sh
+      - if: always()
+        run: docker compose down -v
       - name: Trivy scan (report only)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
           image-ref: ekm-test/ai-service

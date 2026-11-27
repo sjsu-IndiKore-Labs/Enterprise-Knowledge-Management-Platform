@@ -61,7 +61,9 @@ Each service's `Dockerfile` + health endpoint (see `contracts/ports-and-services
 - [ ] GitHub variables `AWS_DEPLOY_ROLE_ARN`, `AWS_REGION`, `STAGING_URL` + environment `staging`; first green CD run
 - [ ] Jenkins running (local Docker or EC2) with the pipeline; screenshot for the report
 - [ ] Get answers to the container-convention questions sent to Ayushi, Vedanti and Changhyun
-- [ ] `REAL=1 make test-docker` once each service has code
+- [x] `REAL=1 make test-docker` once each service has code (2026-11-27: all 5 real images healthy against fresh Postgres + LocalStack; CI runs it with `BACKEND_NETWORK=ekm_default`)
+- [x] Backend switched to Maven: build-push.sh / test_images.sh detect `ayushi_backend/pom.xml`, fixture converted to Maven
+- [ ] Retire `make migrate-raw` once Ayushi confirms Flyway is the schema source of truth (local DBs built with it break core-api's V2 migration)
 
 ## Team-lead recurring
 - [ ] Weekly sync (suggest Sunday): each member reports TODO progress + open questions; update `docs/timeline.md`
@@ -69,4 +71,5 @@ Each service's `Dockerfile` + health endpoint (see `contracts/ports-and-services
 - [ ] Merge `develop` → `main` at the end of each milestone (tag `m2`, `m3`, …)
 
 ## Blocked / waiting on
-- _none yet_
+- ai-service/ai-worker can't reach RDS until they read `POSTGRES_*`: [questions/to-vedanti/2026-11-27_from-manali_postgres-env-var-names.md](../questions/to-vedanti/2026-11-27_from-manali_postgres-env-var-names.md) (blocking)
+- Flyway vs contract schema (`audit_logs.metadata` TEXT vs JSONB): [questions/to-ayushi/2026-11-27_from-manali_flyway-vs-contract-schema.md](../questions/to-ayushi/2026-11-27_from-manali_flyway-vs-contract-schema.md)
