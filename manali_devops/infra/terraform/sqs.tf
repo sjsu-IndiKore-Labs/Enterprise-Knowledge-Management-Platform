@@ -19,7 +19,10 @@ resource "aws_sqs_queue" "this" {
 }
 
 resource "aws_sqs_queue_redrive_allow_policy" "dlq" {
-  for_each  = local.queues
+  for_each = {
+    for k in local.queues : k => k
+    if contains(keys(aws_sqs_queue.this), k)
+  }
   queue_url = aws_sqs_queue.dlq[each.key].id
   redrive_allow_policy = jsonencode({
     redrivePermission = "byQueue"

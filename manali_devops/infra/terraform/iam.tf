@@ -54,7 +54,9 @@ data "aws_iam_policy_document" "task" {
 
   # core-api: write/read/delete documents, send ingest + audit, consume status
   dynamic "statement" {
-    for_each = each.key == "core-api" ? [1] : []
+    for_each = (each.key == "core-api" &&
+      contains(keys(aws_sqs_queue.this), "document-ingest") &&
+    contains(keys(aws_sqs_queue.this), "audit-events")) ? [1] : []
     content {
       sid       = "DocumentsReadWrite"
       actions   = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
@@ -62,11 +64,14 @@ data "aws_iam_policy_document" "task" {
     }
   }
   dynamic "statement" {
-    for_each = each.key == "core-api" ? [1] : []
+    for_each = (each.key == "core-api" && contains(keys(aws_sqs_queue.this), "document-status")) ? [1] : []
     content {
-      sid       = "SendIngestAndAudit"
-      actions   = ["sqs:SendMessage", "sqs:GetQueueUrl", "sqs:GetQueueAttributes"]
-      resources = [aws_sqs_queue.this["document-ingest"].arn, aws_sqs_queue.this["audit-events"].arn]
+      sid     = "SendIngestAndAudit"
+      actions = ["sqs:SendMessage", "sqs:GetQueueUrl", "sqs:GetQueueAttributes"]
+      resources = [
+        try(aws_sqs_queue.this["document-ingest"].arn, "*"),
+        try(aws_sqs_queue.this["audit-events"].arn, "*"),
+      ]
     }
   }
   dynamic "statement" {
@@ -74,13 +79,15 @@ data "aws_iam_policy_document" "task" {
     content {
       sid       = "ConsumeStatus"
       actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility", "sqs:GetQueueUrl", "sqs:GetQueueAttributes"]
-      resources = [aws_sqs_queue.this["document-status"].arn]
+      resources = [try(aws_sqs_queue.this["document-status"].arn, "*")]
     }
   }
 
   # ai-worker: read documents, consume ingest, send status
   dynamic "statement" {
-    for_each = contains(["ai-worker", "ai-service"], each.key) ? [1] : []
+    for_each = (contains(["ai-worker", "ai-service"], each.key) &&
+      contains(keys(aws_sqs_queue.this), "document-ingest") &&
+    contains(keys(aws_sqs_queue.this), "document-status")) ? [1] : []
     content {
       sid       = "DocumentsRead"
       actions   = ["s3:GetObject"]
@@ -90,19 +97,22 @@ data "aws_iam_policy_document" "task" {
   dynamic "statement" {
     for_each = contains(["ai-worker", "ai-service"], each.key) ? [1] : []
     content {
-      sid       = "ConsumeIngestSendStatus"
-      actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility", "sqs:SendMessage", "sqs:GetQueueUrl", "sqs:GetQueueAttributes"]
-      resources = [aws_sqs_queue.this["document-ingest"].arn, aws_sqs_queue.this["document-status"].arn]
+      sid     = "ConsumeIngestSendStatus"
+      actions = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility", "sqs:SendMessage", "sqs:GetQueueUrl", "sqs:GetQueueAttributes"]
+      resources = [
+        try(aws_sqs_queue.this["document-ingest"].arn, "*"),
+        try(aws_sqs_queue.this["document-status"].arn, "*"),
+      ]
     }
   }
 
   # audit-service: consume audit events
   dynamic "statement" {
-    for_each = each.key == "audit-service" ? [1] : []
+    for_each = (each.key == "audit-service" && contains(keys(aws_sqs_queue.this), "audit-events")) ? [1] : []
     content {
       sid       = "ConsumeAudit"
       actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility", "sqs:GetQueueUrl", "sqs:GetQueueAttributes"]
-      resources = [aws_sqs_queue.this["audit-events"].arn]
+      resources = [try(aws_sqs_queue.this["audit-events"].arn, "*")]
     }
   }
 

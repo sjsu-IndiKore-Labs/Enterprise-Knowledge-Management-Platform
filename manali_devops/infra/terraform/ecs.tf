@@ -30,12 +30,17 @@ resource "aws_cloudwatch_log_group" "service" {
 locals {
   # Non-secret env shared by backend containers. Names come from .env.example only.
   backend_env = merge(var.app_config, {
-    APP_ENV                   = var.environment
-    AWS_REGION                = var.aws_region
+    APP_ENV    = var.environment
+    AWS_REGION = var.aws_region
+    # The AI image defaults to LocalStack for local development. Explicitly
+    # clear local-only AWS settings in ECS so the SDK uses the task role.
+    AWS_ENDPOINT_URL          = ""
+    AWS_ACCESS_KEY_ID         = ""
+    AWS_SECRET_ACCESS_KEY     = ""
     S3_DOCUMENTS_BUCKET       = aws_s3_bucket.documents.bucket
-    SQS_DOCUMENT_INGEST_QUEUE = aws_sqs_queue.this["document-ingest"].name
-    SQS_DOCUMENT_STATUS_QUEUE = aws_sqs_queue.this["document-status"].name
-    SQS_AUDIT_EVENTS_QUEUE    = aws_sqs_queue.this["audit-events"].name
+    SQS_DOCUMENT_INGEST_QUEUE = try(aws_sqs_queue.this["document-ingest"].name, "")
+    SQS_DOCUMENT_STATUS_QUEUE = try(aws_sqs_queue.this["document-status"].name, "")
+    SQS_AUDIT_EVENTS_QUEUE    = try(aws_sqs_queue.this["audit-events"].name, "")
     POSTGRES_HOST             = aws_db_instance.this.address
     POSTGRES_PORT             = tostring(aws_db_instance.this.port)
     POSTGRES_DB               = aws_db_instance.this.db_name
@@ -77,10 +82,13 @@ locals {
         essential              = true
         readonlyRootFilesystem = false
         environment            = [for name, value in local.service_env[k] : { name = name, value = value }]
+        # Import/bootstrap operations can evaluate a partial resource graph
+        # before every secret instance exists in state. Keep those operations
+        # evaluable; a full plan includes every configured secret below.
         secrets = [for name in local.service_secrets[k] : {
           name      = name
           valueFrom = aws_secretsmanager_secret.this[name].arn
-        }]
+        } if contains(keys(aws_secretsmanager_secret.this), name)]
         portMappings = s.port == null ? [] : [{
           name          = "http"
           containerPort = s.port

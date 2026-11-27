@@ -116,7 +116,7 @@ resource "aws_cloudwatch_metric_alarm" "ingest_backlog_age" {
   alarm_description   = "Oldest document waiting for ingestion is older than 10 minutes (ai-worker down or too slow)"
   namespace           = "AWS/SQS"
   metric_name         = "ApproximateAgeOfOldestMessage"
-  dimensions          = { QueueName = aws_sqs_queue.this["document-ingest"].name }
+  dimensions          = { QueueName = try(aws_sqs_queue.this["document-ingest"].name, "") }
   statistic           = "Maximum"
   period              = 300
   evaluation_periods  = 1
@@ -160,11 +160,10 @@ resource "aws_cloudwatch_log_metric_filter" "errors" {
   log_group_name = aws_cloudwatch_log_group.service[each.key].name
   pattern        = "{ $.level = \"ERROR\" }"
   metric_transformation {
-    name          = "ErrorLogCount"
-    namespace     = "EKM/${var.environment}"
-    value         = "1"
-    default_value = "0"
-    dimensions    = { Service = "$.service" }
+    name       = "ErrorLogCount"
+    namespace  = "EKM/${var.environment}"
+    value      = "1"
+    dimensions = { Service = "$.service" }
   }
 }
 

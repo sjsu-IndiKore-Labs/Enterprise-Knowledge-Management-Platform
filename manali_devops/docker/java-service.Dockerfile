@@ -10,19 +10,18 @@
 # produces <SERVICE>/build/libs/<name>.jar, and GET /actuator/health on $PORT.
 # Flyway location inside the image: filesystem:/contracts/database/migrations
 # =============================================================================
-ARG GRADLE_IMAGE=gradle:8.10.2-jdk21
+ARG MAVEN_IMAGE=maven:3.9-eclipse-temurin-21
 ARG RUNTIME_IMAGE=eclipse-temurin:21-jre-alpine
 
-FROM ${GRADLE_IMAGE} AS build
+FROM ${MAVEN_IMAGE} AS build
 ARG BACKEND_DIR=ayushi_backend
 ARG SERVICE=core-api
 WORKDIR /src
-COPY ${BACKEND_DIR}/ ./
-# Use the project's Gradle wrapper when present, otherwise the image's Gradle.
-RUN --mount=type=cache,target=/home/gradle/.gradle/caches \
-    GRADLE="gradle"; if [ -f ./gradlew ]; then chmod +x ./gradlew && GRADLE="./gradlew"; fi; \
-    $GRADLE --no-daemon -q ":${SERVICE}:bootJar" -x test \
- && for f in "${SERVICE}"/build/libs/*.jar; do case "$f" in *-plain.jar) ;; *) cp "$f" /app.jar ;; esac; done \
+COPY ${BACKEND_DIR}/ ./${BACKEND_DIR}/
+COPY contracts/database/migrations ./contracts/database/migrations
+WORKDIR /src/${BACKEND_DIR}
+RUN mvn -B -q clean package -pl "${SERVICE}" -am -DskipTests \
+ && cp "${SERVICE}"/target/*.jar /app.jar \
  && test -f /app.jar
 
 FROM ${RUNTIME_IMAGE}

@@ -17,7 +17,7 @@ FROM ${NODE_IMAGE} AS deps
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml* package-lock.json* ./
-RUN if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; \
+RUN if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile --allow-build=esbuild; \
     elif [ -f package-lock.json ]; then npm ci; \
     else npm install --no-audit --no-fund; fi
 

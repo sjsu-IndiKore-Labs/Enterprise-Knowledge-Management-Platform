@@ -52,7 +52,7 @@ resource "aws_vpc_security_group_ingress_rule" "tasks_from_alb" {
 
 resource "aws_vpc_security_group_ingress_rule" "tasks_from_tasks" {
   security_group_id            = aws_security_group.ecs_tasks.id
-  description                  = "Service-to-service (core-api -> ai-service via Service Connect)"
+  description                  = "Service-to-service core-api to ai-service via Service Connect"
   referenced_security_group_id = aws_security_group.ecs_tasks.id
   ip_protocol                  = "tcp"
   from_port                    = 3000
