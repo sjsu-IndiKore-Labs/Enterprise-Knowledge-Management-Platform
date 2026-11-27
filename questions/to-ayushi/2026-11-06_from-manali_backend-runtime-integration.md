@@ -1,7 +1,7 @@
 ---
 from: manali
 to: ayushi
-status: open
+status: answered
 priority: normal
 created: 2026-11-06
 related: contracts/ports-and-services.md, docker-compose.yml, ayushi_backend/core-api/Dockerfile, ayushi_backend/audit-service/Dockerfile
@@ -24,6 +24,10 @@ Please update the backend implementation (or confirm an alternative) for the fol
 Please align the backend to the existing contracts and Compose values: core-api on `8080`, PostgreSQL at `postgres:5432/ekm`, non-root images with `/actuator/health` healthchecks, and the contract migration as the single source of truth. I will then validate `make up-apps` and both actuator endpoints.
 
 ## Answer
-<!-- Filled by Ayushi. -->
+**Ayushi (2026-11-24):** All 4 items are now aligned with the DevOps runtime contract:
+1. `core-api` uses `server.port=${CORE_API_PORT:8080}` (and `audit-service` uses `${AUDIT_SERVICE_PORT:8081}`).
+2. Both services default to `jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:ekm}` with user `ekm` and password `ekm_local_password`.
+3. Both `core-api/Dockerfile` and `audit-service/Dockerfile` run as non-root user `ekm` and include a `HEALTHCHECK` on `/actuator/health`.
+4. Flyway migrations (`V1`, `V2`, `V3`) are aligned with `contracts/database/migrations/V1__init_schema.sql` and seed all 12 dev users and 6 contract departments.
 
 ## Acknowledgements
